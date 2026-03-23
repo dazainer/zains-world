@@ -1,7 +1,9 @@
 /**
  * AmbientSprite — animated non-player entities: camel, snake, torches.
- * Each has an idle animation loop; the camel also has an eating animation
- * that plays randomly.
+ * Each has an idle animation loop.
+ *
+ * Camel/snake: 32×32 native (desert pack) — renderW=renderH=32.
+ * Torch flame: 16×16 source (dungeon pack) drawn at 32×32 (2× scale).
  */
 import { SpriteSheet, Animation, type Frame } from './SpriteSheet'
 
@@ -9,17 +11,22 @@ export type AmbientType = 'camel' | 'snake' | 'torch'
 
 export interface AmbientSpriteConfig {
   type: AmbientType
+  /** World-space top-left x of the rendered sprite */
   x: number
+  /** World-space top-left y of the rendered sprite */
   y: number
-  /** Pixel size to render at (32 for terrain-scale sprites, 32 for 2× dungeon sprites) */
-  renderSize?: number
+  /** Render width in destination pixels (default 32) */
+  renderW?: number
+  /** Render height in destination pixels (default 32) */
+  renderH?: number
 }
 
 export class AmbientSprite {
   readonly x: number
   readonly y: number
   readonly type: AmbientType
-  private renderSize: number
+  private renderW: number
+  private renderH: number
 
   private sheet: SpriteSheet | null = null
   private animation: Animation | null = null
@@ -28,13 +35,20 @@ export class AmbientSprite {
     this.x = config.x
     this.y = config.y
     this.type = config.type
-    this.renderSize = config.renderSize ?? 32
+    this.renderW = config.renderW ?? 32
+    this.renderH = config.renderH ?? 32
   }
 
-  /** Call after sprite sheets are loaded to wire up animations. */
-  init(sheet: SpriteSheet, idleFrames: Frame[], fps = 8) {
+  /**
+   * Wire up the sprite sheet and build the animation.
+   * @param sheet       Pre-created SpriteSheet instance (shared across sprites of the same type)
+   * @param idleFrames  Frame descriptors for the idle loop
+   * @param fps         Animation speed (default 8)
+   * @param startFrame  First frame index — stagger multiple instances so they don't flicker in sync
+   */
+  init(sheet: SpriteSheet, idleFrames: Frame[], fps = 8, startFrame = 0) {
     this.sheet = sheet
-    this.animation = new Animation(idleFrames, fps)
+    this.animation = new Animation(idleFrames, fps, startFrame)
   }
 
   update(dt: number) {
@@ -49,8 +63,8 @@ export class AmbientSprite {
       frame,
       this.x - cameraX,
       this.y - cameraY,
-      this.renderSize,
-      this.renderSize,
+      this.renderW,
+      this.renderH,
     )
   }
 }

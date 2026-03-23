@@ -1,16 +1,21 @@
 /**
- * GameCanvas — mounts the HTML5 canvas and starts the GameEngine.
- * Renders at a native low resolution (NATIVE_W × NATIVE_H) then scales
- * up via CSS to fill the viewport with `image-rendering: pixelated`.
+ * GameCanvas — mounts the HTML5 canvas and drives the game engine.
+ *
+ * Native resolution: 512×288 (16:9). The canvas element has those exact pixel
+ * dimensions. CSS scales it to fill the viewport while maintaining aspect ratio
+ * via CSS min() so pixels stay perfectly square (pixelated rendering).
+ *
+ * Layout:
+ *   - width  = min(100vw, 100vh × 16/9)
+ *   - height = min(100vh, 100vw × 9/16)
+ * On a 16:9 screen the canvas fills edge-to-edge. On other ratios it letterboxes
+ * (dark bars) rather than stretching.
  */
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
 import { useGameEngine } from '../hooks/useGameEngine'
 import DialogueBox from './DialogueBox'
 import InteractionPrompt from './InteractionPrompt'
 import MobileControls from './MobileControls'
-
-const NATIVE_W = 512
-const NATIVE_H = 288
 
 export default function GameCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -23,7 +28,9 @@ export default function GameCanvas() {
       <div style={styles.mobilePrompt}>
         <p style={styles.mobileText}>This experience is best on desktop.</p>
         <div style={styles.mobileButtons}>
-          <button style={styles.mobileBtn} onClick={() => {}}>Try anyway</button>
+          <button style={styles.mobileBtn} onClick={() => window.location.reload()}>
+            Try anyway
+          </button>
           <a href="/portfolio" style={styles.mobileBtn}>View portfolio</a>
         </div>
       </div>
@@ -34,8 +41,8 @@ export default function GameCanvas() {
     <div style={styles.wrapper}>
       <canvas
         ref={canvasRef}
-        width={NATIVE_W}
-        height={NATIVE_H}
+        width={512}
+        height={288}
         style={styles.canvas}
       />
       {showInteractionPrompt && <InteractionPrompt />}
@@ -52,7 +59,6 @@ export default function GameCanvas() {
 
 const styles: Record<string, React.CSSProperties> = {
   wrapper: {
-    position: 'relative',
     width: '100vw',
     height: '100vh',
     display: 'flex',
@@ -62,10 +68,12 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
   },
   canvas: {
-    width: '100vw',
-    height: '100vh',
-    objectFit: 'contain',
+    // Scale up from 512×288 to fill the viewport while preserving 16:9 aspect ratio.
+    // CSS min() picks whichever dimension is the bottleneck.
+    width:  'min(100vw, calc(100vh * 16 / 9))',
+    height: 'min(100vh, calc(100vw * 9 / 16))',
     imageRendering: 'pixelated',
+    display: 'block',
   },
   mobilePrompt: {
     display: 'flex',

@@ -1,7 +1,9 @@
 /**
- * useGameEngine — React hook that mounts and tears down the GameEngine
- * when the canvas element is available, and bridges game events to
- * React state (dialogue box, interaction prompt, open panels).
+ * useGameEngine — mounts and tears down the GameEngine when the canvas is ready.
+ * Returns UI state the engine needs to push up to React (dialogue, prompts, panels).
+ *
+ * The canvas ref is stable (React guarantees this), so the effect uses [] deps
+ * and runs exactly once on mount / once on unmount.
  */
 import { useEffect, useState, type RefObject } from 'react'
 import { GameEngine } from '../game/GameEngine'
@@ -13,25 +15,21 @@ export interface GameUIState {
 }
 
 export function useGameEngine(canvasRef: RefObject<HTMLCanvasElement | null>): GameUIState {
-  const [showInteractionPrompt, setShowInteractionPrompt] = useState(false)
-  const [dialogueState, setDialogueState] = useState<DialogueState | null>(null)
+  // These will be driven by engine callbacks once interactions are implemented
+  const [showInteractionPrompt] = useState(false)
+  const [dialogueState] = useState<DialogueState | null>(null)
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
 
     const engine = new GameEngine(canvas)
-
-    // TODO: wire engine events to state setters
-    // engine.on('interactionPrompt', setShowInteractionPrompt)
-    // engine.on('dialogue', setDialogueState)
-
     engine.start()
 
     return () => {
       engine.stop()
     }
-  }, [canvasRef])
+  }, []) // stable ref — intentionally omitted from deps
 
   return { showInteractionPrompt, dialogueState }
 }

@@ -6,7 +6,14 @@
       "Bash(npm install:*)",
       "Bash(npx tsc:*)",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git branch:*)",
+      "Bash(git commit:*)",
+      "Bash(curl:*)",
+      "Bash(python3 -c \":*)",
+      "Bash(python3:*)",
+      "Bash(node:*)",
+      "Bash(sips -g pixelWidth -g pixelHeight \"/Users/zain/Desktop/Projects/zains-world/public/assets/sprites/Player.png\" \"/Users/zain/Desktop/Projects/zains-world/public/assets/sprites/Mummy.png\" \"/Users/zain/Desktop/Projects/zains-world/public/assets/ambient/Idle Camel \\(2 Directions\\).png\" \"/Users/zain/Desktop/Projects/zains-world/public/assets/ambient/Camel Eating \\(2 Directions\\).png\" \"/Users/zain/Desktop/Projects/zains-world/public/assets/ambient/Idle Snake \\(2 Directions\\).png\" \"/Users/zain/Desktop/Projects/zains-world/public/assets/tiles/dungeon/Fire.png\")"
     ]
   }
 }

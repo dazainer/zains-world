@@ -1,32 +1,36 @@
 /**
- * Camera — follows the player with smooth lerp, clamped to room boundaries.
- * The game renders at a native low resolution (e.g. 512×288) then scales up to fill the viewport.
+ * Camera — follows the player with smooth lerp, clamped to map boundaries.
+ * Uses a simple per-frame lerp factor of 0.1 (moves 10% of remaining distance
+ * each frame — assumes ~60fps, which is standard for this game).
  */
+
+const LERP = 0.1
+
 export class Camera {
   x = 0
   y = 0
 
-  private lerpSpeed = 5
-
   constructor(
-    private viewWidth: number,
-    private viewHeight: number,
+    private viewW: number,
+    private viewH: number,
   ) {}
 
-  follow(targetX: number, targetY: number, mapPixelW: number, mapPixelH: number, dt: number) {
-    const desiredX = targetX - this.viewWidth / 2
-    const desiredY = targetY - this.viewHeight / 2
+  /** Called every update. Smoothly chases the target and clamps to map edges. */
+  follow(targetX: number, targetY: number, mapPixelW: number, mapPixelH: number) {
+    const desiredX = targetX - this.viewW / 2
+    const desiredY = targetY - this.viewH / 2
 
-    this.x += (desiredX - this.x) * Math.min(1, this.lerpSpeed * dt)
-    this.y += (desiredY - this.y) * Math.min(1, this.lerpSpeed * dt)
+    this.x += (desiredX - this.x) * LERP
+    this.y += (desiredY - this.y) * LERP
 
-    // Clamp to map bounds
-    this.x = Math.max(0, Math.min(this.x, mapPixelW - this.viewWidth))
-    this.y = Math.max(0, Math.min(this.y, mapPixelH - this.viewHeight))
+    // Never show outside the map
+    this.x = Math.max(0, Math.min(this.x, mapPixelW - this.viewW))
+    this.y = Math.max(0, Math.min(this.y, mapPixelH - this.viewH))
   }
 
-  snap(targetX: number, targetY: number, mapPixelW: number, mapPixelH: number) {
-    this.x = Math.max(0, Math.min(targetX - this.viewWidth / 2, mapPixelW - this.viewWidth))
-    this.y = Math.max(0, Math.min(targetY - this.viewHeight / 2, mapPixelH - this.viewHeight))
+  /** Teleport camera instantly (use on room load so there's no lerp across the map). */
+  snapTo(targetX: number, targetY: number, mapPixelW: number, mapPixelH: number) {
+    this.x = Math.max(0, Math.min(targetX - this.viewW / 2, mapPixelW - this.viewW))
+    this.y = Math.max(0, Math.min(targetY - this.viewH / 2, mapPixelH - this.viewH))
   }
 }

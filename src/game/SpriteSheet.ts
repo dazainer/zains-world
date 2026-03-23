@@ -16,7 +16,8 @@ export class SpriteSheet {
 
   constructor(src: string) {
     this.image = new Image()
-    this.image.onload = () => { this.loaded = true }
+    this.image.onload  = () => { this.loaded = true }
+    this.image.onerror = () => { console.error(`SpriteSheet: failed to load "${src}"`) }
     this.image.src = src
   }
 
@@ -24,12 +25,8 @@ export class SpriteSheet {
 
   /**
    * Draw a single frame to the canvas.
-   * @param ctx     Canvas 2D context
-   * @param frame   Source rectangle in the sprite sheet
-   * @param dx      Destination x (canvas pixels)
-   * @param dy      Destination y (canvas pixels)
-   * @param dw      Destination width  (pass 32 to 2× a 16px sprite)
-   * @param dh      Destination height (pass 32 to 2× a 16px sprite)
+   * @param dw  Destination width  (pass 32 to 2× a 16px sprite)
+   * @param dh  Destination height (pass 32 to 2× a 16px sprite)
    */
   draw(
     ctx: CanvasRenderingContext2D,
@@ -64,17 +61,21 @@ export class SpriteSheet {
 export class Animation {
   private frameIndex = 0
   private elapsed = 0
+  private readonly frameDuration: number  // cached 1/fps
 
   constructor(
     private frames: Frame[],
     private fps = 8,
-  ) {}
+    startFrame = 0,
+  ) {
+    this.frameDuration = 1 / fps
+    if (frames.length > 0) this.frameIndex = startFrame % frames.length
+  }
 
   update(dt: number) {
     this.elapsed += dt
-    const frameDuration = 1 / this.fps
-    if (this.elapsed >= frameDuration) {
-      this.elapsed -= frameDuration
+    if (this.elapsed >= this.frameDuration) {
+      this.elapsed -= this.frameDuration
       this.frameIndex = (this.frameIndex + 1) % this.frames.length
     }
   }
