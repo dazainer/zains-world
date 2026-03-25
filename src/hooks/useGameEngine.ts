@@ -1,35 +1,68 @@
 /**
- * useGameEngine — mounts and tears down the GameEngine when the canvas is ready.
- * Returns UI state the engine needs to push up to React (dialogue, prompts, panels).
- *
- * The canvas ref is stable (React guarantees this), so the effect uses [] deps
- * and runs exactly once on mount / once on unmount.
+ * useGameEngine — mounts the GameEngine, wires UI callbacks, and exposes state to React.
  */
-import { useEffect, useState, type RefObject } from 'react'
-import { GameEngine } from '../game/GameEngine'
-import type { DialogueState } from '../components/DialogueBox'
+import { useEffect, useRef, useState, useCallback, type RefObject } from 'react'
+import { GameEngine, type GameUICallbacks } from '../game/GameEngine'
+import type { InputManager } from '../game/InputManager'
 
 export interface GameUIState {
   showInteractionPrompt: boolean
-  dialogueState: DialogueState | null
+  /** When set, the player interacted with a zone — id + optional payload */
+  interaction: { id: string; payload?: string } | null
+  clearInteraction: () => void
+  engineRef: React.RefObject<GameEngine | null>
+  /** Asset loading progress (0–1) */
+  loadProgress: number
+  /** True when all assets have loaded */
+  isReady: boolean
+  /** InputManager reference for MobileControls to inject virtual input */
+  inputManager: InputManager | null
 }
 
 export function useGameEngine(canvasRef: RefObject<HTMLCanvasElement | null>): GameUIState {
-  // These will be driven by engine callbacks once interactions are implemented
-  const [showInteractionPrompt] = useState(false)
-  const [dialogueState] = useState<DialogueState | null>(null)
+  const [showInteractionPrompt, setShowInteractionPrompt] = useState(false)
+  const [interaction, setInteraction] = useState<{ id: string; payload?: string } | null>(null)
+  const [loadProgress, setLoadProgress] = useState(0)
+  const [isReady, setIsReady] = useState(false)
+  const [inputManager, setInputManager] = useState<InputManager | null>(null)
+  const engineRef = useRef<GameEngine | null>(null)
+
+  const clearInteraction = useCallback(() => {
+    setInteraction(null)
+    engineRef.current?.setUIPaused(false)
+  }, [])
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
 
-    const engine = new GameEngine(canvas)
+    const callbacks: GameUICallbacks = {
+      onShowInteractionPrompt: setShowInteractionPrompt,
+      onInteraction: (id, payload) => {
+        setInteraction({ id, payload })
+        // Pause game input while any interaction overlay is open
+        engineRef.current?.setUIPaused(true)
+      },
+      onLoadProgress: (loaded, total) => {
+        setLoadProgress(total > 0 ? loaded / total : 0)
+      },
+      onReady: () => setIsReady(true),
+    }
+
+    const engine = new GameEngine(canvas, callbacks)
+    engineRef.current = engine
+    setInputManager(engine.getInputManager())
     engine.start()
 
     return () => {
       engine.stop()
+      engineRef.current = null
+      setInputManager(null)
     }
   }, []) // stable ref — intentionally omitted from deps
 
-  return { showInteractionPrompt, dialogueState }
+  return {
+    showInteractionPrompt, interaction, clearInteraction,
+    engineRef, loadProgress, isReady, inputManager,
+  }
 }

@@ -1,25 +1,60 @@
 /**
- * MobileControls — virtual d-pad for touch devices.
- * Renders on touch-capable devices only (bottom-left d-pad, bottom-right action button).
+ * MobileControls — virtual d-pad (bottom-left) + A button (bottom-right).
+ * Renders on touch-capable devices only. Wires touch events to InputManager.
  */
+import { useCallback, useRef } from 'react'
+import type { InputManager, InputState } from '../game/InputManager'
+
+interface Props {
+  inputManager: InputManager | null
+}
+
 const isTouchDevice = 'ontouchstart' in window
 
-export default function MobileControls() {
+export default function MobileControls({ inputManager }: Props) {
   if (!isTouchDevice) return null
 
-  // TODO: wire touch events to InputManager.setVirtual()
+  // Track which buttons are currently pressed
+  const pressed = useRef<Partial<InputState>>({})
+
+  const update = useCallback((key: keyof InputState, value: boolean) => {
+    if (!inputManager) return
+    pressed.current = { ...pressed.current, [key]: value }
+    inputManager.setVirtual(pressed.current)
+  }, [inputManager])
+
+  const dpadBtn = (dir: 'up' | 'down' | 'left' | 'right', label: string) => (
+    <button
+      style={{ ...styles.dpadBtn, gridArea: dir }}
+      aria-label={label}
+      onTouchStart={e => { e.preventDefault(); update(dir, true) }}
+      onTouchEnd={e => { e.preventDefault(); update(dir, false) }}
+      onTouchCancel={() => update(dir, false)}
+    >
+      {label}
+    </button>
+  )
+
   return (
     <div style={styles.wrapper}>
       {/* D-pad */}
       <div style={styles.dpad}>
-        <button style={{ ...styles.dpadBtn, gridArea: 'up' }}    aria-label="Up">▲</button>
-        <button style={{ ...styles.dpadBtn, gridArea: 'left' }}  aria-label="Left">◀</button>
-        <button style={{ ...styles.dpadBtn, gridArea: 'center' }} aria-label="Center" disabled />
-        <button style={{ ...styles.dpadBtn, gridArea: 'right' }} aria-label="Right">▶</button>
-        <button style={{ ...styles.dpadBtn, gridArea: 'down' }}  aria-label="Down">▼</button>
+        {dpadBtn('up', '\u25B2')}
+        {dpadBtn('left', '\u25C0')}
+        <div style={{ ...styles.dpadCenter, gridArea: 'center' }} />
+        {dpadBtn('right', '\u25B6')}
+        {dpadBtn('down', '\u25BC')}
       </div>
       {/* Action button */}
-      <button style={styles.actionBtn} aria-label="Interact">A</button>
+      <button
+        style={styles.actionBtn}
+        aria-label="Interact"
+        onTouchStart={e => { e.preventDefault(); update('interact', true) }}
+        onTouchEnd={e => { e.preventDefault(); update('interact', false) }}
+        onTouchCancel={() => update('interact', false)}
+      >
+        A
+      </button>
     </div>
   )
 }
@@ -43,15 +78,17 @@ const styles: Record<string, React.CSSProperties> = {
       "left center right"
       ". down ."
     `,
-    gridTemplateColumns: '40px 40px 40px',
-    gridTemplateRows: '40px 40px 40px',
+    gridTemplateColumns: '44px 44px 44px',
+    gridTemplateRows: '44px 44px 44px',
     gap: '2px',
     pointerEvents: 'auto',
-    opacity: 0.7,
+    opacity: 0.75,
+    touchAction: 'none',
   },
   dpadBtn: {
-    background: 'rgba(200, 168, 80, 0.3)',
-    border: '2px solid #c8a850',
+    background: 'rgba(200, 168, 80, 0.35)',
+    border: '2px solid rgba(200, 168, 80, 0.6)',
+    borderRadius: '6px',
     color: '#c8a850',
     fontSize: '1rem',
     cursor: 'pointer',
@@ -59,19 +96,27 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    touchAction: 'none',
+    WebkitTapHighlightColor: 'transparent',
+  },
+  dpadCenter: {
+    background: 'rgba(200, 168, 80, 0.12)',
+    borderRadius: '4px',
   },
   actionBtn: {
-    width: '56px',
-    height: '56px',
+    width: '60px',
+    height: '60px',
     borderRadius: '50%',
-    background: 'rgba(200, 168, 80, 0.3)',
-    border: '2px solid #c8a850',
+    background: 'rgba(200, 168, 80, 0.35)',
+    border: '2px solid rgba(200, 168, 80, 0.6)',
     color: '#c8a850',
     fontFamily: "'Press Start 2P', monospace",
     fontSize: '1rem',
     cursor: 'pointer',
     pointerEvents: 'auto',
-    opacity: 0.7,
+    opacity: 0.75,
     alignSelf: 'flex-end',
+    touchAction: 'none',
+    WebkitTapHighlightColor: 'transparent',
   },
 }

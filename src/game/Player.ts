@@ -7,11 +7,11 @@
  * Bob: sine-wave Y offset — ±1.5 px @ 4 Hz while walking, ±0.5 px @ 1 Hz idle.
  *
  * Sprite: Player.png — 96×128 px, 16×16 source frames → 6 cols × 8 rows
- *   Layout (2 rows per direction: even=idle, odd=walk):
- *     Row 0 (y=  0): Idle Down   Row 1 (y= 16): Walk Down
- *     Row 2 (y= 32): Idle Left   Row 3 (y= 48): Walk Left
- *     Row 4 (y= 64): Idle Right  Row 5 (y= 80): Walk Right
- *     Row 6 (y= 96): Idle Up     Row 7 (y=112): Walk Up
+ *   Layout (rows 0-3 = idle, rows 4-7 = walk, matching direction order):
+ *     Row 0 (y=  0): Idle Down   Row 4 (y= 64): Walk Down
+ *     Row 1 (y= 16): Idle Right  Row 5 (y= 80): Walk Right
+ *     Row 2 (y= 32): Idle Up     Row 6 (y= 96): Walk Up
+ *     Row 3 (y= 48): Idle Left   Row 7 (y=112): Walk Left
  *   Source 16×16 drawn at 24×24 dest (1.5×, imageSmoothingEnabled=false).
  */
 import type { InputState } from './InputManager'
@@ -29,13 +29,13 @@ const FH   = 16   // source frame height
 const COLS = 6    // frames per row
 
 const ROW_IDLE_DOWN  = 0
-const ROW_WALK_DOWN  = 1
-const ROW_IDLE_LEFT  = 2
-const ROW_WALK_LEFT  = 3
-const ROW_IDLE_RIGHT = 4
+const ROW_WALK_DOWN  = 4
+const ROW_IDLE_LEFT  = 3
+const ROW_WALK_LEFT  = 7
+const ROW_IDLE_RIGHT = 1
 const ROW_WALK_RIGHT = 5
-const ROW_IDLE_UP    = 6
-const ROW_WALK_UP    = 7
+const ROW_IDLE_UP    = 2
+const ROW_WALK_UP    = 6
 
 export class Player {
   x: number
@@ -75,6 +75,9 @@ export class Player {
 
     this.anim = this.idleAnims.down
   }
+
+  /** Expose SpriteSheet for asset-loading tracking. */
+  getSheet(): SpriteSheet { return this.sheet }
 
   update(dt: number, input: InputState, collisionMap: CollisionMap) {
     let vx = 0

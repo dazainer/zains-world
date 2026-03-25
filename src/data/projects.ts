@@ -29,7 +29,7 @@ export const projects: Project[] = [
     description:
       'Rebuilt a CLI expense tracker into a full-stack web app with React/TypeScript frontend, Node.js/Express backend, PostgreSQL database, and interactive Recharts dashboards for spending analysis.',
     tech: ['React', 'TypeScript', 'Node.js', 'PostgreSQL', 'Recharts'],
-    github: 'https://github.com/dazainer/expense-tracker-v2',
+    github: 'https://github.com/dazainer/personal-expense-tracker',
     demo: null,
     monitorAnimation: 'chart',
   },

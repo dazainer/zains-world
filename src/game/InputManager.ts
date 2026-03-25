@@ -1,7 +1,7 @@
 /**
  * InputManager — tracks keyboard and virtual d-pad state each frame (polling model).
  * Desktop: arrow keys / WASD for movement, Space/Enter to interact, Escape to close.
- * Mobile: state updated externally by MobileControls component via setButton().
+ * Mobile: state updated externally by MobileControls component via setVirtual().
  */
 export interface InputState {
   up: boolean
@@ -31,6 +31,10 @@ export class InputManager {
   }
 
   private onKeyDown = (e: KeyboardEvent) => {
+    // Don't intercept keys when user is typing in an input/textarea
+    const tag = (e.target as HTMLElement)?.tagName
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return
+
     this.keys[e.code] = true
     if (e.code === 'Space' || e.code === 'Enter') this.interactConsumed = false
     if (e.code === 'Escape') this.escapeConsumed = false
@@ -46,6 +50,10 @@ export class InputManager {
 
   /** Called by MobileControls to inject virtual button state */
   setVirtual(state: Partial<InputState>) {
+    // Detect rising edge of virtual interact → reset consumed flag
+    if (state.interact && !this.virtual.interact) {
+      this.interactConsumed = false
+    }
     this.virtual = state
   }
 
@@ -62,7 +70,7 @@ export class InputManager {
 
   /** Returns true once per keydown press for interact */
   consumeInteract(): boolean {
-    if ((this.keys['Space'] || this.keys['Enter']) && !this.interactConsumed) {
+    if ((this.keys['Space'] || this.keys['Enter'] || this.virtual.interact) && !this.interactConsumed) {
       this.interactConsumed = true
       return true
     }

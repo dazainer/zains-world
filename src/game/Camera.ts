@@ -10,10 +10,13 @@ export class Camera {
   x = 0
   y = 0
 
-  constructor(
-    private viewW: number,
-    private viewH: number,
-  ) {}
+  private viewW: number
+  private viewH: number
+
+  constructor(viewW: number, viewH: number) {
+    this.viewW = viewW
+    this.viewH = viewH
+  }
 
   /** Called every update. Smoothly chases the target and clamps to map edges. */
   follow(targetX: number, targetY: number, mapPixelW: number, mapPixelH: number) {

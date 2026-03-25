@@ -7,7 +7,7 @@
  */
 import { SpriteSheet, Animation, type Frame } from './SpriteSheet'
 
-export type AmbientType = 'camel' | 'snake' | 'torch'
+export type AmbientType = 'camel' | 'snake' | 'torch' | 'npc' | 'chest'
 
 export interface AmbientSpriteConfig {
   type: AmbientType

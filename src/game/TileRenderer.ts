@@ -26,7 +26,11 @@ export class TileRenderer {
   // Pre-allocated frame object — mutated in the tile loop to avoid per-tile heap allocations.
   private readonly frame: Frame = { sx: 0, sy: 0, sw: 0, sh: 0 }
 
-  constructor(private tileSize = 32) {}
+  private tileSize: number
+
+  constructor(tileSize = 32) {
+    this.tileSize = tileSize
+  }
 
   /**
    * Render one layer of a tile map.

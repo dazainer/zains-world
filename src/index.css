@@ -6,12 +6,23 @@
 
 html, body, #root {
   width: 100%;
-  height: 100%;
-  overflow: hidden;
+  min-height: 100%;
   background: #1a1008;
 }
 
 body {
   font-family: system-ui, -apple-system, sans-serif;
   color: #f5e6c8;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Dialogue box "▼" blink */
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+/* ProjectPanel slide-up */
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }

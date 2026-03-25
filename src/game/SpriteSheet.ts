@@ -63,11 +63,14 @@ export class Animation {
   private elapsed = 0
   private readonly frameDuration: number  // cached 1/fps
 
+  private frames: Frame[]
+
   constructor(
-    private frames: Frame[],
-    private fps = 8,
+    frames: Frame[],
+    fps = 8,
     startFrame = 0,
   ) {
+    this.frames = frames
     this.frameDuration = 1 / fps
     if (frames.length > 0) this.frameIndex = startFrame % frames.length
   }

@@ -38,6 +38,7 @@
  */
 import type { TileMap } from '../TileRenderer'
 import type { TileType } from '../CollisionMap'
+import type { RoomData, DoorDef, InteractionZoneDef } from '../RoomManager'
 
 export const COLS      = 30
 export const ROWS      = 24
@@ -122,6 +123,46 @@ blockCollision(7, 9, 8, 11)
 blockCollision(7, 9, 19, 21)
 // Hut     — 96×96 px at (col 12, row 19) → visual cols 12-14, rows 19-21
 blockCollision(19, 21, 12, 14)
+
+// ─── Building entrance doors (type 3 = room transition) ──────────────────────
+// Placed at the dark opening at the bottom-centre of each building sprite.
+// blockCollision already set these to 0; override to 3 so walking in triggers
+// a room transition rather than being blocked.
+// Temple (Projects Lab): 128px wide at col 8 → centre cols 9-10, bottom row 9
+collisionMap[9][9]  = 3
+collisionMap[9][10] = 3
+// Castle (Experience Tower): 96px wide at col 19 → centre col 20, bottom row 9
+collisionMap[9][20] = 3
+// Hut (Contact Portal): 96px wide at col 12 → centre col 13, bottom row 21
+collisionMap[21][13] = 3
+// Skills Forge entrance: SW corner block (rows 21-22, cols 5-8), door at cols 6-7 row 21
+collisionMap[21][6] = 3
+collisionMap[21][7] = 3
+
+// ─── Fake wall → Secret Room entrance ───────────────────────────────────────
+// Setting terrain to W makes these render as the dark border fill, visually
+// indistinguishable from the adjacent right-border wall at col 29.
+// Collision type 3 triggers the room transition when the player walks through.
+// The animated snake at (col 26, row 5) is the in-world hint.
+terrainLayer[1][28] = W
+terrainLayer[2][28] = W
+collisionMap[1][28] = 3
+collisionMap[2][28] = 3
+
+// ─── About Me NPC (Mummy) — col 12, row 12 ───────────────────────────────────
+collisionMap[12][12] = 0  // NPC body blocks movement
+collisionMap[12][11] = 2  // interaction zone: player approaches from west
+collisionMap[11][12] = 2  // interaction zone: player approaches from north
+
+// ─── Resume Chest — col 17, row 11 ───────────────────────────────────────────
+collisionMap[11][17] = 0  // chest blocks movement
+collisionMap[12][17] = 2  // interaction zone: player stands south of chest
+
+// ─── World positions exported for GameEngine ─────────────────────────────────
+/** Centre of the About Me NPC sprite in world pixels. */
+export const NPC_POS   = { x: 12 * TILE_SIZE + TILE_SIZE / 2, y: 12 * TILE_SIZE + TILE_SIZE / 2 }
+/** Centre of the Resume Chest sprite in world pixels. */
+export const CHEST_POS = { x: 17 * TILE_SIZE + TILE_SIZE / 2, y: 11 * TILE_SIZE + TILE_SIZE / 2 }
 
 // ─── Decoration layer ─────────────────────────────────────────────────────────
 // Prop sprites drawn ON TOP of the terrain layer (second render pass).
@@ -253,5 +294,52 @@ export const decorationLayer: TileMap = (() => {
   d[20][25] = PROP_C
   d[21][27] = PROP_A
 
+  // ── Stone paths — PATH/DARK SAND center fill (R5,C2 = idx 78) ─────────────
+  // Connects the three building entrances across the map at row 10 (the first
+  // walkable row below the north buildings), then turns south toward the hut.
+  const PF = 78  // PATH/DARK SAND autotile center fill
+  // Horizontal path in front of temple + castle: row 10, cols 8–21
+  for (let c = 8; c <= 21; c++) d[10][c] = PF
+  // South path from spawn area down to Contact Portal hut: col 13, rows 13–18
+  for (let r = 13; r <= 18; r++) d[r][13] = PF
+
   return d
 })()
+
+// ── Overworld door definitions ──────────────────────────────────────────────
+// Each maps a type-3 tile in collisionMap to a target interior room + spawn.
+const T = TILE_SIZE
+const overworldDoors: DoorDef[] = [
+  // Temple → Projects Lab (cols 9-10, row 9)
+  { col: 9,  row: 9, targetRoom: 'projectsLab', spawnX: 8 * T, spawnY: 14 * T + T / 2, spawnDirection: 'up' },
+  { col: 10, row: 9, targetRoom: 'projectsLab', spawnX: 8 * T, spawnY: 14 * T + T / 2, spawnDirection: 'up' },
+  // Castle → Experience Tower Floor 1 (col 20, row 9)
+  { col: 20, row: 9, targetRoom: 'experienceTower_1', spawnX: 6 * T, spawnY: 10 * T + T / 2, spawnDirection: 'up' },
+  // Hut → Contact Portal (col 13, row 21)
+  { col: 13, row: 21, targetRoom: 'contactPortal', spawnX: 5 * T, spawnY: 8 * T + T / 2, spawnDirection: 'up' },
+  // SW corner block → Skills Forge (cols 6-7, row 21)
+  { col: 6, row: 21, targetRoom: 'skillsForge', spawnX: 7 * T, spawnY: 12 * T + T / 2, spawnDirection: 'up' },
+  { col: 7, row: 21, targetRoom: 'skillsForge', spawnX: 7 * T, spawnY: 12 * T + T / 2, spawnDirection: 'up' },
+  // Fake wall → Secret Room (col 28, rows 1-2)
+  { col: 28, row: 1, targetRoom: 'secretRoom', spawnX: 7 * T, spawnY: 10 * T + T / 2, spawnDirection: 'up' },
+  { col: 28, row: 2, targetRoom: 'secretRoom', spawnX: 7 * T, spawnY: 10 * T + T / 2, spawnDirection: 'up' },
+]
+
+const overworldInteractionZones: InteractionZoneDef[] = [
+  { col: 11, row: 12, id: 'npc-aboutme',    payload: 'aboutme' },
+  { col: 12, row: 11, id: 'npc-aboutme',    payload: 'aboutme' },
+  { col: 17, row: 12, id: 'resume-chest',   payload: 'resume' },
+]
+
+/** Overworld as RoomData — used by the engine for doors/interaction/collision. */
+export const overworldRoom: RoomData = {
+  id: 'overworld',
+  cols: COLS,
+  rows: ROWS,
+  tileSize: TILE_SIZE,
+  collisionGrid: collisionMap,
+  defaultSpawn: SPAWN,
+  doors: overworldDoors,
+  interactionZones: overworldInteractionZones,
+  isInterior: false,
+}

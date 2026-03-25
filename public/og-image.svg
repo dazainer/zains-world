@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#1a1008"/>
+  <rect x="40" y="40" width="1120" height="550" rx="8" fill="none" stroke="#c8a850" stroke-width="3"/>
+  <text x="600" y="260" text-anchor="middle" font-family="serif" font-size="72" font-weight="bold" fill="#c8a850">Zain's World</text>
+  <text x="600" y="340" text-anchor="middle" font-family="sans-serif" font-size="28" fill="#f5e6c8">CS/BBA @ University of Waterloo</text>
+  <text x="600" y="400" text-anchor="middle" font-family="sans-serif" font-size="22" fill="#a89070">Backend systems &amp; applied AI — explore my portfolio as a pixel art game</text>
+  <text x="600" y="540" text-anchor="middle" font-family="monospace" font-size="18" fill="#5a4030">zainkhalil.ca</text>
+</svg>

@@ -104,6 +104,7 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.6,
     color: '#f5e6c8',
     margin: 0,
+    whiteSpace: 'pre-line',
   },
   indicator: {
     position: 'absolute',

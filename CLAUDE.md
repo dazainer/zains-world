@@ -24,6 +24,10 @@ A personal portfolio website built as a top-down 2D pixel art exploration game s
   - **KloWorks' Desert Dungeon Pack 16x16** (free for commercial use, no AI): pharaoh player character (idle + walk), enemy character, animated treasure box, doors, torches, dungeon tiles
     Source: https://kloworks.itch.io/desert-dungeon-pack
 
+### Detailed Asset Reference
+
+For exact sheet dimensions, row orders, mixed-atlas notes, and sprite slicing guidance, see `ASSET_GUIDE.md`.
+
 ### Sprite scaling note
 The Desert Dungeon Pack (player character, treasure box, torches, doors) is 16x16. The Desert Tileset (terrain, environment) is 32x32. Render the 16x16 sprites at 2x scale (drawImage with 32x32 destination size) so everything aligns to the same grid. Use `imageSmoothingEnabled = false` to keep pixels crisp when scaling.
 
