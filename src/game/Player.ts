@@ -1,6 +1,6 @@
 /**
  * Player — pharaoh character.
- * Position (x, y) is the centre of the 24×24 rendered sprite in world pixels.
+ * Position (x, y) is the centre of the 20×20 rendered sprite in world pixels.
  *
  * Movement: 96 px/s (3 tiles/s @ 32 px grid), 4-directional (no diagonal).
  * Collision: per-axis sliding so the player slides along walls.
@@ -12,7 +12,7 @@
  *     Row 1 (y= 16): Idle Right  Row 5 (y= 80): Walk Right
  *     Row 2 (y= 32): Idle Up     Row 6 (y= 96): Walk Up
  *     Row 3 (y= 48): Idle Left   Row 7 (y=112): Walk Left
- *   Source 16×16 drawn at 24×24 dest (1.5×, imageSmoothingEnabled=false).
+ *   Source 16×16 drawn at 20×20 dest (1.25×, imageSmoothingEnabled=false).
  */
 import type { InputState } from './InputManager'
 import type { CollisionMap } from './CollisionMap'
@@ -21,8 +21,8 @@ import { SpriteSheet, Animation } from './SpriteSheet'
 export type Direction = 'up' | 'down' | 'left' | 'right'
 
 const SPEED       = 96   // px/s
-const RENDER_SIZE = 24   // destination px — 1.5× the 16-px source
-const HALF        = 12   // RENDER_SIZE / 2
+const RENDER_SIZE = 20   // destination px — ~80% of the old 24px render size
+const HALF        = 10   // RENDER_SIZE / 2
 
 const FW   = 16   // source frame width
 const FH   = 16   // source frame height

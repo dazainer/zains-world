@@ -27,9 +27,67 @@ A personal portfolio website built as a top-down 2D pixel art exploration game s
 ### Detailed Asset Reference
 
 For exact sheet dimensions, row orders, mixed-atlas notes, and sprite slicing guidance, see `ASSET_GUIDE.md`.
+For measured solid-pixel bounds, see `SOLID_FOOTPRINTS.md`.
+For the current live overworld composition, structure sizes, and door widths, see `OVERWORLD_LAYOUT.md`.
 
 ### Sprite scaling note
 The Desert Dungeon Pack (player character, treasure box, torches, doors) is 16x16. The Desert Tileset (terrain, environment) is 32x32. Render the 16x16 sprites at 2x scale (drawImage with 32x32 destination size) so everything aligns to the same grid. Use `imageSmoothingEnabled = false` to keep pixels crisp when scaling.
+
+## Current Implementation Notes
+
+These notes reflect the live codebase more reliably than some of the original design goals below.
+
+- The overworld is now hand-tuned around `public/assets/reference/reference-map.png`, with:
+  - rect-based structure collisions
+  - debug overlays and layer-cycling systems still exist in code, but their keyboard toggles are currently disabled in `src/game/InputManager.ts` for deploy-safe behavior
+  - calibrated structure sizing documented in `OVERWORLD_LAYOUT.md` and `SOLID_FOOTPRINTS.md`
+- The Contact Hut now routes into `contactPortal`.
+- The overworld resume chest is live again near `(27,19)` as a scaled-down gold chest from `Treasure_Box.png`.
+  - It now uses an interact-to-open / hold-open / close-on-dismiss flow instead of auto-downloading immediately.
+- Skill interactions were moved out of the hut and into `pyramidLore`; `src/game/maps/skillsForge.ts` still exists as legacy room data but is not part of the live overworld flow.
+- A welcome intro overlay now appears on first load via `src/components/WelcomeScreen.tsx`.
+- `src/components/GameCanvas.tsx` now manages two looping soundtrack layers:
+  - `/assets/soundtracks/main.ogg` for the overworld
+  - `/assets/soundtracks/indoor.ogg` for interior rooms
+  - music auto-switches based on the current room id and can be muted with the top-left in-game button
+- `src/components/GameCanvas.tsx` also now manages named SFX from `public/assets/sfx/`, including:
+  - map open/close
+  - welcome dismiss
+  - looped footsteps while walking
+  - door transitions
+  - interaction sounds (`interact_default`, `interact_skill`, `chest_open`)
+  - dialogue close + looped `dialogue_bleep` while text is typing
+  - a separate top-left `SOUNDS ON/OFF` toggle under the music button
+- Mobile loading bug note:
+  - `src/components/GameCanvas.tsx` must keep the canvas mounted even when the mobile warning is shown
+  - otherwise `useGameEngine` sees `canvasRef.current === null` on its one init pass and the loading bar stays at `0%` forever on mobile
+- Asset loading is now fail-soft:
+  - `src/game/SpriteSheet.ts` marks failed sheets as loaded for progress-unblocking
+  - `src/game/GameEngine.ts` also has a load timeout fallback so a hung asset request cannot block the app indefinitely
+- Interior room set dressing is now data-driven through `src/game/InteriorDeco.ts`.
+- Interiors now also have explicit wayfinding:
+  - Experience Tower floors show a top-most fixed `FLOOR 1/2/3` plaque
+  - exit signs are rendered above the real way out in interior rooms
+- A future Snake leaderboard handoff spec now lives in `SNAKE_LEADERBOARD_SPEC.md`.
+  - It intentionally uses **top-10 qualification** for score submission instead of only allowing new #1 scores.
+- The static portfolio at `/portfolio` has been redesigned into a sticky-scrolling editorial layout in `src/components/StaticPortfolio.tsx`.
+  - Portfolio-specific copy now lives in `src/data/personalInfoPortfolio.ts`.
+  - The game still uses `src/data/personalInfo.ts`.
+  - The current portfolio hero image is `/assets/photos/web/omam4-hero.jpg`.
+  - The portrait crop is controlled in `StaticPortfolio.tsx` by `PROFILE_PHOTO_POSITION`, `PROFILE_PHOTO_SHIFT_X`, and `PROFILE_PHOTO_SCALE`.
+- Optimized web-photo copies now live in `public/assets/photos/web/`.
+  - Live portfolio and Experience Tower references should prefer the `web/` copies over the original full-resolution files.
+- `src/components/DialogueBox.tsx` and `src/components/InteractionPrompt.tsx` were both recently scaled up for readability.
+
+## Deployment Notes
+
+- This app uses `BrowserRouter` and has a real `/portfolio` route.
+- There is currently **no** `vercel.json` or other SPA rewrite config in the repo.
+- Before deploy, make sure Vercel rewrites unknown routes to `/index.html`; otherwise direct visits or refreshes on `/portfolio` can 404.
+- Public asset paths are case-sensitive on deploy targets like Vercel Linux builds:
+  - prefer the normalized lowercase web copies in `/assets/photos/web/`
+  - avoid relying on macOS case-insensitive behavior when referencing original source files
+- `public/assets/photos/omam2.HEIC` exists, but web-facing pages should use the `.jpeg` copy, not the `.HEIC`.
 
 ## Architecture
 
@@ -45,6 +103,7 @@ src/
 │   ├── SpriteSheet.ts       # Sprite sheet loader, frame extraction, animation (handles 2x scaling for 16x16 assets)
 │   ├── TileRenderer.ts      # Renders tile-based maps from 2D arrays
 │   ├── AmbientSprite.ts     # Animated ambient NPCs (camel, snake, torches) with idle loops
+│   ├── InteriorDeco.ts      # Shared interior prop frames + reusable sprite decoration helpers
 │   └── maps/                # Map data for each room
 │       ├── overworld.ts     # Main outdoor desert/Egypt map
 │       ├── projectsLab.ts   # Projects Lab interior (tech workshop)
@@ -62,12 +121,14 @@ src/
 │   ├── DebugTerminal.tsx    # Easter egg functional terminal in secret room
 │   ├── BookshelfPanel.tsx   # Bookshelf interaction panel in secret room
 │   ├── SnakeGame.tsx        # Mini Snake game easter egg in secret room
-│   └── StaticPortfolio.tsx  # Full traditional portfolio (fallback page at /portfolio)
+│   ├── WelcomeScreen.tsx    # First-load intro overlay that blocks input until dismissed
+│   └── StaticPortfolio.tsx  # Sticky-scrolling traditional portfolio at /portfolio
 ├── data/                    # Content data (add new content by editing these files)
 │   ├── projects.ts          # Project entries
 │   ├── skills.ts            # Skills with proficiency tiers
 │   ├── experience.ts        # Experience entries with optional photo URLs
 │   ├── personalInfo.ts      # Bio, contact links, fun facts
+│   ├── personalInfoPortfolio.ts # Portfolio-only copy/content for /portfolio
 │   ├── books.ts             # Bookshelf entries for secret room
 │   └── terminalCommands.ts  # Debug terminal command responses
 ├── hooks/

@@ -29,6 +29,7 @@ export function useGameEngine(canvasRef: RefObject<HTMLCanvasElement | null>): G
 
   const clearInteraction = useCallback(() => {
     setInteraction(null)
+    engineRef.current?.suppressCurrentActionKeys()
     engineRef.current?.setUIPaused(false)
   }, [])
 

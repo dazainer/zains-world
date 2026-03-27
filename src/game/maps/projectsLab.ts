@@ -1,16 +1,19 @@
 /**
- * Projects Lab — 16×16 interior room.
- * 3 workstations against the north wall (SpecGuard, Expense Tracker, AI Meeting Copilot).
+ * Projects Lab — compact workshop interior.
+ * 3 workstations along the north wall (SpecGuard, Expense Tracker, Fantasy Founders).
+ * Each station has a desk (wall blocks), a colored marker above, and interaction tiles.
+ * Decorative props (pots, barrels, crates) scattered around the room.
  * Exit door at bottom-centre returns to overworld at the Temple building.
- * Uses dungeon-pack rendering (canvas-drawn walls/floors + Door.png + Fire.png).
  */
 import type { TileType } from '../CollisionMap'
 import type { RoomData, DoorDef, InteractionZoneDef } from '../RoomManager'
 import { SpriteSheet } from '../SpriteSheet'
 import { AmbientSprite } from '../AmbientSprite'
+import { DUNGEON_PROP_FRAMES, placeInteriorDeco } from '../InteriorDeco'
+import { OVERWORLD_RETURN_SPAWNS } from './overworld'
 
-const COLS = 16
-const ROWS = 16
+const COLS = 14
+const ROWS = 12
 const T = 32
 
 // ── Collision grid ──────────────────────────────────────────────────────────
@@ -23,39 +26,60 @@ const D: TileType = 3
 // prettier-ignore
 const collisionGrid: TileType[][] = [
 // col: 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
-/* 0 */[W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W],
-/* 1 */[W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W],
-/* 2 */[W, F, W, W, F, F, W, W, F, F, W, W, F, F, F, W], // workbenches at cols 2-3, 6-7, 10-11
-/* 3 */[W, F, I, I, F, F, I, I, F, F, I, I, F, F, F, W], // interaction zones in front
-/* 4 */[W, F, F, F, F, F, F, F, F, F, F, F, F, F, F, W],
-/* 5 */[W, F, F, F, F, F, F, F, F, F, F, F, F, F, F, W],
-/* 6 */[W, F, F, F, F, F, F, F, F, F, F, F, F, F, F, W],
-/* 7 */[W, F, F, F, F, F, F, F, F, F, F, F, F, F, F, W],
-/* 8 */[W, F, F, F, F, F, F, F, F, F, F, F, F, F, F, W],
-/* 9 */[W, F, F, F, F, F, F, F, F, F, F, F, F, F, F, W],
-/*10 */[W, F, F, F, F, F, F, F, F, F, F, F, F, F, F, W],
-/*11 */[W, F, F, F, F, F, F, F, F, F, F, F, F, F, F, W],
-/*12 */[W, F, F, F, F, F, F, F, F, F, F, F, F, F, F, W],
-/*13 */[W, F, F, F, F, F, F, F, F, F, F, F, F, F, F, W],
-/*14 */[W, F, F, F, F, F, F, F, F, F, F, F, F, F, F, W],
-/*15 */[W, W, W, W, W, W, W, D, D, W, W, W, W, W, W, W], // exit door cols 7-8
+/* 0 */[W, W, W, W, W, W, W, W, W, W, W, W, W, W],
+/* 1 */[W, W, W, W, W, W, W, W, W, W, W, W, W, W],
+/* 2 */[W, F, W, W, F, W, W, F, W, W, F, F, F, W],
+/* 3 */[W, F, W, W, F, W, W, F, W, W, F, F, F, W],
+/* 4 */[W, F, I, I, F, I, I, F, I, I, F, F, F, W],
+/* 5 */[W, F, F, F, F, F, F, F, F, F, F, F, F, W],
+/* 6 */[W, F, F, F, F, F, F, F, F, F, F, F, F, W],
+/* 7 */[W, F, F, F, F, F, F, F, F, F, F, F, F, W],
+/* 8 */[W, F, F, F, F, F, F, F, F, F, F, F, F, W],
+/* 9 */[W, F, F, F, F, F, F, F, F, F, F, F, F, W],
+/*10 */[W, F, F, F, F, F, F, F, F, F, F, F, F, W],
+/*11 */[W, W, W, W, W, W, D, D, W, W, W, W, W, W],
 ]
+
+const templeReturn = OVERWORLD_RETURN_SPAWNS.projectsLab
 
 // ── Doors ───────────────────────────────────────────────────────────────────
 const doors: DoorDef[] = [
-  // Exit → overworld (just south of Temple building, row 10, centered on cols 9-10)
-  { col: 7, row: 15, targetRoom: 'overworld', spawnX: 10 * T, spawnY: 10 * T + T / 2, spawnDirection: 'down' },
-  { col: 8, row: 15, targetRoom: 'overworld', spawnX: 10 * T, spawnY: 10 * T + T / 2, spawnDirection: 'down' },
+  { col: 6, row: 11, targetRoom: 'overworld', spawnX: templeReturn.x, spawnY: templeReturn.y, spawnDirection: templeReturn.direction },
+  { col: 7, row: 11, targetRoom: 'overworld', spawnX: templeReturn.x, spawnY: templeReturn.y, spawnDirection: templeReturn.direction },
 ]
 
 // ── Interaction zones ───────────────────────────────────────────────────────
 const interactionZones: InteractionZoneDef[] = [
-  { col: 2,  row: 3, id: 'station-specguard',       payload: 'specguard' },
-  { col: 3,  row: 3, id: 'station-specguard',       payload: 'specguard' },
-  { col: 6,  row: 3, id: 'station-expense-tracker',  payload: 'expense-tracker' },
-  { col: 7,  row: 3, id: 'station-expense-tracker',  payload: 'expense-tracker' },
-  { col: 10, row: 3, id: 'station-meeting-copilot',  payload: 'meeting-copilot' },
-  { col: 11, row: 3, id: 'station-meeting-copilot',  payload: 'meeting-copilot' },
+  { col: 2,  row: 4, id: 'station-specguard',        payload: 'specguard' },
+  { col: 3,  row: 4, id: 'station-specguard',        payload: 'specguard' },
+  { col: 5,  row: 4, id: 'station-expense-tracker',   payload: 'expense-tracker' },
+  { col: 6,  row: 4, id: 'station-expense-tracker',   payload: 'expense-tracker' },
+  { col: 8,  row: 4, id: 'station-fantasy-founders',  payload: 'fantasy-founders' },
+  { col: 9,  row: 4, id: 'station-fantasy-founders',  payload: 'fantasy-founders' },
+]
+
+// ── Station decoration metadata (consumed by GameEngine.renderInterior) ─────
+export interface StationDeco {
+  label: string
+  color: string           // marker/accent color
+  deskCols: [number, number]  // which columns have the desk surface
+  deskRow: number         // row for desk blocks (wall blocks in grid)
+  markerRow: number       // row above desk for colored marker
+}
+
+export const stationDecos: StationDeco[] = [
+  { label: 'SpecGuard',        color: '#4ec9b0', deskCols: [2, 3], deskRow: 3, markerRow: 2 },
+  { label: 'Expense Tracker',  color: '#dcdcaa', deskCols: [5, 6], deskRow: 3, markerRow: 2 },
+  { label: 'Fantasy Founders', color: '#ce9178', deskCols: [8, 9], deskRow: 3, markerRow: 2 },
+]
+
+const spriteDecos = [
+  placeInteriorDeco('crate-west', 'props', DUNGEON_PROP_FRAMES.crate, 1, 6, 24, 24, 4, 4),
+  placeInteriorDeco('crate-east', 'props', DUNGEON_PROP_FRAMES.crate, 11, 6, 24, 24, 4, 4),
+  placeInteriorDeco('barrel-south-west', 'props', DUNGEON_PROP_FRAMES.barrel, 2, 8, 24, 24, 4, 4),
+  placeInteriorDeco('barrel-south-east', 'props', DUNGEON_PROP_FRAMES.barrel, 10, 8, 24, 24, 4, 4),
+  placeInteriorDeco('pot-west', 'props', DUNGEON_PROP_FRAMES.potA, 1, 9, 24, 24, 4, 4),
+  placeInteriorDeco('pot-east', 'props', DUNGEON_PROP_FRAMES.potB, 11, 9, 24, 24, 4, 4),
 ]
 
 // ── Ambient sprites (torches on walls) ──────────────────────────────────────
@@ -64,22 +88,23 @@ function buildAmbients(): AmbientSprite[] {
   const frames = SpriteSheet.buildRow(0, 0, 16, 32, 6)
 
   const torchPositions = [
-    { col: 3, row: 0 },   // above workstation 1
-    { col: 7, row: 0 },   // above workstation 2
-    { col: 11, row: 0 },  // above workstation 3
-    { col: 1, row: 7 },   // left wall
-    { col: 14, row: 7 },  // right wall
+    { col: 1,  row: 1 },  // left of station 1
+    { col: 4,  row: 1 },  // between station 1 & 2
+    { col: 8,  row: 1 },  // between station 2 & 3
+    { col: 11, row: 1 },  // right of station 3
+    { col: 1,  row: 8 },  // left wall mid
+    { col: 12, row: 8 },  // right wall mid
   ]
 
   return torchPositions.map((pos, i) => {
     const torch = new AmbientSprite({
       type: 'torch',
-      x: pos.col * T + 8,    // centre the 32-wide torch in the tile
-      y: pos.row * T - 16,   // offset up so flame is above the wall
+      x: pos.col * T + 8,
+      y: pos.row * T - 16,
       renderW: 32,
       renderH: 64,
     })
-    torch.init(fireSheet, frames, 8, i)  // stagger start frames
+    torch.init(fireSheet, frames, 8, i)
     return torch
   })
 }
@@ -91,9 +116,10 @@ export const projectsLabRoom: RoomData = {
   rows: ROWS,
   tileSize: T,
   collisionGrid,
-  defaultSpawn: { x: 8 * T, y: 14 * T + T / 2 },
+  defaultSpawn: { x: 7 * T, y: 10 * T + T / 2 },
   doors,
   interactionZones,
   isInterior: true,
   buildAmbients,
+  spriteDecos,
 }

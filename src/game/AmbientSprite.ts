@@ -26,7 +26,7 @@ export class AmbientSprite {
   readonly y: number
   readonly type: AmbientType
   private renderW: number
-  private renderH: number
+  private _renderH: number
 
   private sheet: SpriteSheet | null = null
   private animation: Animation | null = null
@@ -36,7 +36,7 @@ export class AmbientSprite {
     this.y = config.y
     this.type = config.type
     this.renderW = config.renderW ?? 32
-    this.renderH = config.renderH ?? 32
+    this._renderH = config.renderH ?? 32
   }
 
   /**
@@ -51,6 +51,9 @@ export class AmbientSprite {
     this.animation = new Animation(idleFrames, fps, startFrame)
   }
 
+  /** Y coordinate of the sprite's bottom edge — used for Y-sort rendering. */
+  get sortY(): number { return this.y + this._renderH }
+
   update(dt: number) {
     this.animation?.update(dt)
   }
@@ -64,7 +67,7 @@ export class AmbientSprite {
       this.x - cameraX,
       this.y - cameraY,
       this.renderW,
-      this.renderH,
+      this._renderH,
     )
   }
 }

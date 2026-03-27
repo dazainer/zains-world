@@ -13,11 +13,16 @@ export interface Frame {
 export class SpriteSheet {
   private image: HTMLImageElement
   private loaded = false
+  private failed = false
 
   constructor(src: string) {
     this.image = new Image()
     this.image.onload  = () => { this.loaded = true }
-    this.image.onerror = () => { console.error(`SpriteSheet: failed to load "${src}"`) }
+    this.image.onerror = () => {
+      console.error(`SpriteSheet: failed to load "${src}"`)
+      this.failed = true
+      this.loaded = true  // unblock loading progress
+    }
     this.image.src = src
   }
 
@@ -36,7 +41,7 @@ export class SpriteSheet {
     dw = frame.sw,
     dh = frame.sh,
   ) {
-    if (!this.loaded) return
+    if (!this.loaded || this.failed) return
     ctx.drawImage(this.image, frame.sx, frame.sy, frame.sw, frame.sh, dx, dy, dw, dh)
   }
 

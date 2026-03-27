@@ -6,6 +6,7 @@ export interface Project {
   tech: string[]
   github: string | null
   demo: string | null
+  image?: string | null
   monitorAnimation: string
   underConstruction?: boolean
 }
@@ -20,6 +21,7 @@ export const projects: Project[] = [
     tech: ['Python', 'FastAPI', 'React', 'TypeScript', 'OpenAI API', 'Pydantic'],
     github: 'https://github.com/dazainer/specguard',
     demo: null,
+    image: null,
     monitorAnimation: 'pipeline',
   },
   {
@@ -31,18 +33,19 @@ export const projects: Project[] = [
     tech: ['React', 'TypeScript', 'Node.js', 'PostgreSQL', 'Recharts'],
     github: 'https://github.com/dazainer/personal-expense-tracker',
     demo: null,
+    image: null,
     monitorAnimation: 'chart',
   },
   {
-    id: 'meeting-copilot',
-    name: 'AI Meeting Copilot',
-    tagline: 'RAG-powered meeting intelligence',
+    id: 'fantasy-founders',
+    name: 'Fantasy Founders',
+    tagline: 'Fantasy sports meets startup investing',
     description:
-      'Building a meeting intelligence tool using RAG with pgvector, Ollama for local LLM inference, automated action item extraction, evaluation harness, and a metrics dashboard.',
-    tech: ['Python', 'pgvector', 'Ollama', 'PostgreSQL', 'FastAPI'],
-    github: null,
+      'A fantasy-sports-style game where players draft and trade real startups, earning points based on live funding rounds, acquisitions, and milestones. Built with React, Node.js, and real-time data feeds.',
+    tech: ['React', 'TypeScript', 'Node.js', 'PostgreSQL', 'WebSockets'],
+    github: 'https://github.com/PLIAN78/GOONHack',
     demo: null,
-    monitorAnimation: 'waveform',
-    underConstruction: true,
+    image: null,
+    monitorAnimation: 'chart',
   },
 ]

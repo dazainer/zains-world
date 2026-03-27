@@ -12,6 +12,7 @@ export interface ProjectData {
   tech: string[]
   github: string | null
   demo: string | null
+  image?: string | null
   underConstruction?: boolean
 }
 
@@ -40,6 +41,15 @@ export default function ProjectPanel({ project, onClose }: Props) {
         )}
         <h2 style={styles.title}>{project.name}</h2>
         <p style={styles.tagline}>{project.tagline}</p>
+        {project.image && (
+          <div style={styles.mediaFrame}>
+            <img
+              src={project.image}
+              alt={`${project.name} screenshot`}
+              style={styles.mediaImage}
+            />
+          </div>
+        )}
         <p style={styles.description}>{project.description}</p>
         <div style={styles.techRow}>
           {project.tech.map((t) => (
@@ -109,6 +119,20 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '0.9rem',
     lineHeight: 1.6,
     marginBottom: '1rem',
+  },
+  mediaFrame: {
+    marginBottom: '1rem',
+    border: '2px solid rgba(200, 168, 80, 0.55)',
+    borderRadius: '12px',
+    overflow: 'hidden',
+    background: '#120a05',
+    boxShadow: '0 10px 22px rgba(0, 0, 0, 0.22)',
+  },
+  mediaImage: {
+    display: 'block',
+    width: '100%',
+    maxHeight: '280px',
+    objectFit: 'cover',
   },
   techRow: {
     display: 'flex',

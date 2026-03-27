@@ -12,6 +12,9 @@ export interface InputState {
   escape: boolean
 }
 
+// Deploy-safe default: keep the debug systems in code, but disable keyboard access.
+const DEBUG_KEY_TOGGLES_ENABLED = false
+
 export class InputManager {
   private keys: Record<string, boolean> = {}
   private virtual: Partial<InputState> = {}
@@ -19,6 +22,9 @@ export class InputManager {
   // Consumed-once flags (set true on keydown, cleared after one read)
   private interactConsumed = false
   private escapeConsumed = false
+  private debugOverlayQueued = false
+  private overworldLayerCycleQueued = false
+  private mapToggleQueued = false
 
   constructor() {
     window.addEventListener('keydown', this.onKeyDown)
@@ -30,14 +36,38 @@ export class InputManager {
     window.removeEventListener('keyup', this.onKeyUp)
   }
 
+  private isSectionKey(e: KeyboardEvent): boolean {
+    return e.key === '§' || e.key === '±' || e.code === 'IntlBackslash'
+  }
+
   private onKeyDown = (e: KeyboardEvent) => {
     // Don't intercept keys when user is typing in an input/textarea
     const tag = (e.target as HTMLElement)?.tagName
     if (tag === 'INPUT' || tag === 'TEXTAREA') return
 
+    if (DEBUG_KEY_TOGGLES_ENABLED && (e.code === 'Backquote' || this.isSectionKey(e)) && e.repeat) {
+      e.preventDefault()
+      return
+    }
+
     this.keys[e.code] = true
     if (e.code === 'Space' || e.code === 'Enter') this.interactConsumed = false
     if (e.code === 'Escape') this.escapeConsumed = false
+
+    if (DEBUG_KEY_TOGGLES_ENABLED && e.code === 'Backquote') {
+      this.debugOverlayQueued = true
+      e.preventDefault()
+    }
+
+    if (DEBUG_KEY_TOGGLES_ENABLED && this.isSectionKey(e)) {
+      this.overworldLayerCycleQueued = true
+      e.preventDefault()
+    }
+
+    if (e.code === 'KeyM' && !e.repeat) {
+      this.mapToggleQueued = true
+    }
+
     // Prevent page scroll from arrow keys
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
       e.preventDefault()
@@ -84,5 +114,46 @@ export class InputManager {
       return true
     }
     return false
+  }
+
+  /** Returns true once per keydown press for the debug overlay toggle. */
+  consumeDebugOverlayToggle(): boolean {
+    if (this.debugOverlayQueued) {
+      this.debugOverlayQueued = false
+      return true
+    }
+    return false
+  }
+
+  /** Returns true once per section-sign key press for overworld layer cycling. */
+  consumeOverworldLayerCycle(): boolean {
+    if (this.overworldLayerCycleQueued) {
+      this.overworldLayerCycleQueued = false
+      return true
+    }
+    return false
+  }
+
+  /** Returns true once per M key press for map overlay toggle. */
+  consumeMapToggle(): boolean {
+    if (this.mapToggleQueued) {
+      this.mapToggleQueued = false
+      return true
+    }
+    return false
+  }
+
+  /**
+   * When an overlay closes via the same key that opened/advanced it,
+   * suppress that still-held action key so the game doesn't immediately
+   * retrigger the interaction on the next frame.
+   */
+  suppressCurrentActionKeys() {
+    if (this.keys['Space'] || this.keys['Enter'] || this.virtual.interact) {
+      this.interactConsumed = true
+    }
+    if (this.keys['Escape'] || this.virtual.escape) {
+      this.escapeConsumed = true
+    }
   }
 }

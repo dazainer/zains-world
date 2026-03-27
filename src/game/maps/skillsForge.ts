@@ -7,6 +7,7 @@ import type { TileType } from '../CollisionMap'
 import type { RoomData, DoorDef, InteractionZoneDef } from '../RoomManager'
 import { SpriteSheet } from '../SpriteSheet'
 import { AmbientSprite } from '../AmbientSprite'
+import { OVERWORLD_RETURN_SPAWNS } from './overworld'
 
 const COLS = 14
 const ROWS = 14
@@ -36,10 +37,11 @@ const collisionGrid: TileType[][] = [
 /*13 */[W, W, W, W, W, W, D, D, W, W, W, W, W, W], // exit door cols 6-7
 ]
 
+const hutReturn = OVERWORLD_RETURN_SPAWNS.skillsForge
+
 const doors: DoorDef[] = [
-  // Exit → overworld (south of the SW corner block, row 20 col 6-7)
-  { col: 6, row: 13, targetRoom: 'overworld', spawnX: 7 * T, spawnY: 20 * T + T / 2, spawnDirection: 'down' },
-  { col: 7, row: 13, targetRoom: 'overworld', spawnX: 7 * T, spawnY: 20 * T + T / 2, spawnDirection: 'down' },
+  { col: 6, row: 13, targetRoom: 'overworld', spawnX: hutReturn.x, spawnY: hutReturn.y, spawnDirection: hutReturn.direction },
+  { col: 7, row: 13, targetRoom: 'overworld', spawnX: hutReturn.x, spawnY: hutReturn.y, spawnDirection: hutReturn.direction },
 ]
 
 const interactionZones: InteractionZoneDef[] = [

@@ -1,10 +1,10 @@
 export const personalInfo = {
   name: 'Zain Khalil',
   bio: [
-    "Hi! I'm Zain — a CS/BBA student at the University of Waterloo.",
+    "Welcome to Zain's World! I'm Zain — a CS/BBA student at the University of Waterloo.",
     'I build backend systems and applied AI tools.',
     "I grew up in Cairo, Egypt — that's why this world looks the way it does.",
-    'Walk around and explore! Each building has something to show you.',
+    'Walk around and explore. Each building has something different to show you. Press M to open the map!',
   ],
   contact: {
     email: 'z7khalil@uwaterloo.ca',

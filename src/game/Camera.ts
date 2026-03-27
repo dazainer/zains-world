@@ -18,6 +18,18 @@ export class Camera {
     this.viewH = viewH
   }
 
+  setViewSize(viewW: number, viewH: number) {
+    this.viewW = viewW
+    this.viewH = viewH
+  }
+
+  private clampOrCenter(value: number, mapSize: number, viewSize: number) {
+    if (mapSize <= viewSize) {
+      return (mapSize - viewSize) / 2
+    }
+    return Math.max(0, Math.min(value, mapSize - viewSize))
+  }
+
   /** Called every update. Smoothly chases the target and clamps to map edges. */
   follow(targetX: number, targetY: number, mapPixelW: number, mapPixelH: number) {
     const desiredX = targetX - this.viewW / 2
@@ -26,14 +38,15 @@ export class Camera {
     this.x += (desiredX - this.x) * LERP
     this.y += (desiredY - this.y) * LERP
 
-    // Never show outside the map
-    this.x = Math.max(0, Math.min(this.x, mapPixelW - this.viewW))
-    this.y = Math.max(0, Math.min(this.y, mapPixelH - this.viewH))
+    // Never show outside the map; center small maps instead of pinning them
+    // to the top-left of the viewport.
+    this.x = this.clampOrCenter(this.x, mapPixelW, this.viewW)
+    this.y = this.clampOrCenter(this.y, mapPixelH, this.viewH)
   }
 
   /** Teleport camera instantly (use on room load so there's no lerp across the map). */
   snapTo(targetX: number, targetY: number, mapPixelW: number, mapPixelH: number) {
-    this.x = Math.max(0, Math.min(targetX - this.viewW / 2, mapPixelW - this.viewW))
-    this.y = Math.max(0, Math.min(targetY - this.viewH / 2, mapPixelH - this.viewH))
+    this.x = this.clampOrCenter(targetX - this.viewW / 2, mapPixelW, this.viewW)
+    this.y = this.clampOrCenter(targetY - this.viewH / 2, mapPixelH, this.viewH)
   }
 }

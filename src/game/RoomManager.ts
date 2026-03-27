@@ -4,9 +4,10 @@
  * Every room (overworld + interiors) conforms to `RoomData`, giving the engine
  * a uniform shape for collision, doors, interaction zones, and ambient sprites.
  */
-import type { TileType } from './CollisionMap'
+import type { TileType, CollisionRect } from './CollisionMap'
 import type { AmbientSprite } from './AmbientSprite'
 import type { Direction } from './Player'
+import type { InteriorSpriteDeco } from './InteriorDeco'
 
 export type RoomId =
   | 'overworld'
@@ -17,6 +18,7 @@ export type RoomId =
   | 'experienceTower_3'
   | 'contactPortal'
   | 'secretRoom'
+  | 'pyramidLore'
 
 export interface DoorDef {
   col: number
@@ -38,6 +40,24 @@ export interface InteractionZoneDef {
   payload?: string
 }
 
+export interface InteractionRectDef {
+  x: number
+  y: number
+  width: number
+  height: number
+  id: string
+  payload?: string
+}
+
+/** Pixel-based door definition — used with CollisionRect doorZones. */
+export interface RectDoorDef {
+  doorId: string
+  targetRoom: RoomId
+  spawnX: number
+  spawnY: number
+  spawnDirection: Direction
+}
+
 export interface RoomData {
   id: RoomId
   cols: number
@@ -47,10 +67,17 @@ export interface RoomData {
   defaultSpawn: { x: number; y: number }
   doors: DoorDef[]
   interactionZones: InteractionZoneDef[]
+  interactionRects?: InteractionRectDef[]
   /** Interior rooms use canvas-drawn walls/floors; overworld uses tilesets */
   isInterior: boolean
   /** Factory returning ambient sprites for this room (torches, etc.) */
   buildAmbients?: () => AmbientSprite[]
+  /** Optional sprite-based room decorations drawn inside interiors. */
+  spriteDecos?: InteriorSpriteDeco[]
+  /** Pixel-based collision rectangles for buildings/structures (overworld). */
+  collisionRects?: CollisionRect[]
+  /** Door definitions for rect-based door zones (matched by doorId). */
+  rectDoors?: RectDoorDef[]
 }
 
 // ── Registry ────────────────────────────────────────────────────────────────

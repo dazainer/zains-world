@@ -2,6 +2,9 @@
 
 This is a companion to `CLAUDE.md` for navigating `/public/assets/` without trial-and-error.
 
+For exact opaque-bounds measurements, also read `SOLID_FOOTPRINTS.md`.
+For the current live overworld layout that consumes those measurements, read `OVERWORLD_LAYOUT.md`.
+
 The project has three different asset styles mixed together:
 
 - Uniform atlases that can use `SpriteSheet.buildRow(...)`
@@ -20,7 +23,22 @@ As of 2026-03-24, the repo already has some sprite work in progress:
   - idle camel + idle snake ambient sprites
   - Egypt landmarks as full-image sprites (`Pyramid.png`, `Pyramid with Door.png`, `Back.png`)
   - `Mummy.png` for the About Me NPC
-  - `Treasure_Box.png` first frame for the resume chest
+  - `Treasure_Box.png` upper gold row for the live resume chest, with open/close behavior handled in `GameEngine.ts`
+  - `Props+Items.png` and `Vase.png` for interior room set dressing via `src/game/InteriorDeco.ts`
+- `src/components/StaticPortfolio.tsx` currently uses `/assets/photos/omam4.JPG` as the sticky portfolio hero photo.
+  - The live route now points to the higher-quality hero copy at `/assets/photos/web/omam4-hero.jpg`.
+  - The visible crop is tuned in code via `PROFILE_PHOTO_POSITION`, `PROFILE_PHOTO_SHIFT_X`, and `PROFILE_PHOTO_SCALE`.
+- `src/components/GameCanvas.tsx` now also uses:
+  - `/assets/soundtracks/main.ogg` as the overworld loop
+  - `/assets/soundtracks/indoor.ogg` as the interior loop
+  - a top-left mute toggle to silence both tracks
+  - `public/assets/sfx/` for gameplay/UI SFX, with a separate `SOUNDS ON/OFF` toggle under the music button
+- `src/game/GameEngine.ts` now draws interior wayfinding overlays:
+  - a fixed floor badge in the Experience Tower
+  - `EXIT` signs over interior door/stair tiles used to leave a room or descend toward the overworld
+- Mobile loading note:
+  - `src/components/GameCanvas.tsx` now overlays the mobile warning on top of the mounted canvas instead of returning early
+  - this prevents `useGameEngine` from missing its one-time canvas mount and getting stuck at `0%` load on mobile
 - `src/game/maps/overworld.ts` already contains the best existing decode of the desert sheet indices.
 
 The missing piece was a durable asset reference for the mixed-format sheets.
@@ -87,7 +105,12 @@ SpriteSheet.buildRow(0, row * 16, 16, 16, 5)
 - Base frame: `16x16`
 - Layout: identical to `Player.png`
 - Safe assumption: same row order, same frame count, same facing order
-- Current code renders the mummy NPC at `24x24`
+- Live overworld welcome NPC uses a cropped idle row:
+  - `sx = 1 + i * 16`
+  - `sy = 0`
+  - `sw = 14`
+  - `sh = 16`
+  - rendered at `21x24`
 
 ## `public/assets/ambient`
 
@@ -97,18 +120,19 @@ SpriteSheet.buildRow(0, row * 16, 16, 16, 5)
 - Base frame: `32x32`
 - Layout: `4 columns x 2 rows`
 - Direction rows:
-  - row 0 = right-facing idle
-  - row 1 = left-facing idle
+  - row 0 = left-facing idle
+  - row 1 = right-facing idle
 
 ### `Camel Eating (2 Directions).png`
 
 - Size: `360x64`
-- Effective frame size: `32x32`
-- Practical layout: `11 frames x 2 rows`, with an extra `8px` transparent gutter on the far right
+- Effective frame size: `36x32`
+- Practical layout: `10 frames x 2 rows`
 - Direction rows:
-  - row 0 = right-facing eating loop
-  - row 1 = left-facing eating loop
-- Recommendation: use a manual frame array instead of assuming the total width divides cleanly
+  - row 0 = left-facing eating loop
+  - row 1 = right-facing eating loop
+- Frames are ordered chronologically left-to-right within each row.
+- Recommendation: use a manual frame array with `10` frames of `36x32`; do not slice it as `32x32`.
 
 ### `Idle Snake (2 Directions).png`
 
@@ -116,8 +140,8 @@ SpriteSheet.buildRow(0, row * 16, 16, 16, 5)
 - Base frame: `32x32`
 - Layout: `4 columns x 2 rows`
 - Direction rows:
-  - row 0 = right-facing idle
-  - row 1 = left-facing idle
+  - row 0 = left-facing idle
+  - row 1 = right-facing idle
 
 ## `public/assets/tiles/desert`
 
@@ -317,6 +341,12 @@ Observed contents by row:
   - either ignore it for now or hand-crop only the specific pieces Claude actually needs
 
 ## `public/assets/photos`
+
+- `public/assets/photos/web/` now contains the optimized deploy-facing JPEG copies used by:
+  - `src/components/StaticPortfolio.tsx`
+  - `src/game/maps/experienceTower.ts`
+  - `src/data/experience.ts`
+- When adding new user-facing photos, prefer creating a resized web copy there instead of referencing the original camera export directly.
 
 - These are normal photos for experience content, not spritesheets
 - Current groups:
