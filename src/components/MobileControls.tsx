@@ -7,11 +7,12 @@ import type { InputManager, InputState } from '../game/InputManager'
 
 interface Props {
   inputManager: InputManager | null
+  mode?: 'game' | 'snake'
 }
 
 const isTouchDevice = 'ontouchstart' in window
 
-export default function MobileControls({ inputManager }: Props) {
+export default function MobileControls({ inputManager, mode = 'game' }: Props) {
   if (!isTouchDevice) return null
 
   // Track which buttons are currently pressed
@@ -23,13 +24,32 @@ export default function MobileControls({ inputManager }: Props) {
     inputManager.setVirtual(pressed.current)
   }, [inputManager])
 
+  const sendSnakeDirection = useCallback((dir: 'up' | 'down' | 'left' | 'right') => {
+    window.dispatchEvent(new CustomEvent('snake-mobile-direction', { detail: dir }))
+  }, [])
+
+  const pressDirection = useCallback((dir: 'up' | 'down' | 'left' | 'right') => {
+    if (mode === 'snake') {
+      sendSnakeDirection(dir)
+      return
+    }
+    update(dir, true)
+  }, [mode, sendSnakeDirection, update])
+
+  const releaseDirection = useCallback((dir: 'up' | 'down' | 'left' | 'right') => {
+    if (mode === 'snake') return
+    update(dir, false)
+  }, [mode, update])
+
   const dpadBtn = (dir: 'up' | 'down' | 'left' | 'right', label: string) => (
     <button
       style={{ ...styles.dpadBtn, gridArea: dir }}
       aria-label={label}
-      onTouchStart={e => { e.preventDefault(); update(dir, true) }}
-      onTouchEnd={e => { e.preventDefault(); update(dir, false) }}
-      onTouchCancel={() => update(dir, false)}
+      onContextMenu={e => e.preventDefault()}
+      onTouchStart={e => { e.preventDefault(); pressDirection(dir) }}
+      onTouchMove={e => e.preventDefault()}
+      onTouchEnd={e => { e.preventDefault(); releaseDirection(dir) }}
+      onTouchCancel={() => releaseDirection(dir)}
     >
       {label}
     </button>
@@ -45,16 +65,19 @@ export default function MobileControls({ inputManager }: Props) {
         {dpadBtn('right', '\u25B6')}
         {dpadBtn('down', '\u25BC')}
       </div>
-      {/* Action button */}
-      <button
-        style={styles.actionBtn}
-        aria-label="Interact"
-        onTouchStart={e => { e.preventDefault(); update('interact', true) }}
-        onTouchEnd={e => { e.preventDefault(); update('interact', false) }}
-        onTouchCancel={() => update('interact', false)}
-      >
-        A
-      </button>
+      {mode === 'game' && (
+        <button
+          style={styles.actionBtn}
+          aria-label="Interact"
+          onContextMenu={e => e.preventDefault()}
+          onTouchStart={e => { e.preventDefault(); update('interact', true) }}
+          onTouchMove={e => e.preventDefault()}
+          onTouchEnd={e => { e.preventDefault(); update('interact', false) }}
+          onTouchCancel={() => update('interact', false)}
+        >
+          A
+        </button>
+      )}
     </div>
   )
 }
@@ -70,6 +93,9 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '0 1.5rem',
     pointerEvents: 'none',
     zIndex: 40,
+    userSelect: 'none',
+    WebkitUserSelect: 'none',
+    WebkitTouchCallout: 'none',
   },
   dpad: {
     display: 'grid',
@@ -84,6 +110,9 @@ const styles: Record<string, React.CSSProperties> = {
     pointerEvents: 'auto',
     opacity: 0.75,
     touchAction: 'none',
+    userSelect: 'none',
+    WebkitUserSelect: 'none',
+    WebkitTouchCallout: 'none',
   },
   dpadBtn: {
     background: 'rgba(200, 168, 80, 0.35)',
@@ -98,6 +127,8 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     touchAction: 'none',
     WebkitTapHighlightColor: 'transparent',
+    WebkitUserSelect: 'none',
+    WebkitTouchCallout: 'none',
   },
   dpadCenter: {
     background: 'rgba(200, 168, 80, 0.12)',
@@ -118,5 +149,8 @@ const styles: Record<string, React.CSSProperties> = {
     alignSelf: 'flex-end',
     touchAction: 'none',
     WebkitTapHighlightColor: 'transparent',
+    userSelect: 'none',
+    WebkitUserSelect: 'none',
+    WebkitTouchCallout: 'none',
   },
 }

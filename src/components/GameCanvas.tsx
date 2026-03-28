@@ -74,6 +74,7 @@ const INDOOR_FOOTSTEP_PATHS = [
 ] as const
 
 export default function GameCanvas() {
+  const isTouchDevice = 'ontouchstart' in window
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const photoOverlayRef = useRef<HTMLCanvasElement>(null)
   const mainMusicRef = useRef<HTMLAudioElement | null>(null)
@@ -84,6 +85,7 @@ export default function GameCanvas() {
   const footstepTimerRef = useRef<number | null>(null)
   const footstepIndexRef = useRef(0)
   const lastDialogueBleepCharRef = useRef(0)
+  const activeTransientAudioRef = useRef<Set<HTMLAudioElement>>(new Set())
   const activeTrackRef = useRef<TrackKey | null>(null)
   const muteSnapshotRef = useRef<{ trackKey: TrackKey; time: number; mutedAt: number } | null>(null)
   const {
@@ -120,24 +122,53 @@ export default function GameCanvas() {
   }, [isReady, engineRef])
 
   // Mobile prompt: only shown for small touch screens (< 480px).
-  // Stored in state so "Try anyway" can dismiss it.
-  const [showMobilePrompt, setShowMobilePrompt] = useState(
-    () => 'ontouchstart' in window && window.innerWidth < 480,
+  // Stored in dismissal state so "Continue anyway" can hide it.
+  const [mobilePromptDismissed, setMobilePromptDismissed] = useState(false)
+  const [portraitTouchMode, setPortraitTouchMode] = useState(
+    () => isTouchDevice && window.innerHeight > window.innerWidth,
+  )
+  const [appVisible, setAppVisible] = useState(
+    () => typeof document === 'undefined' ? true : document.visibilityState !== 'hidden',
   )
   const [musicMuted, setMusicMuted] = useState(false)
   const [soundsMuted, setSoundsMuted] = useState(false)
   const [currentRoomId, setCurrentRoomId] = useState('overworld')
   const [playerWalking, setPlayerWalking] = useState(false)
+  const showMobilePrompt = portraitTouchMode && !mobilePromptDismissed
+
+  const stopTransientAudio = useCallback(() => {
+    for (const audio of activeTransientAudioRef.current) {
+      audio.pause()
+      audio.currentTime = 0
+    }
+    activeTransientAudioRef.current.clear()
+    if (footstepTimerRef.current !== null) {
+      window.clearInterval(footstepTimerRef.current)
+      footstepTimerRef.current = null
+    }
+  }, [])
+
+  const trackTransientAudio = useCallback((audio: HTMLAudioElement) => {
+    activeTransientAudioRef.current.add(audio)
+    const cleanup = () => {
+      activeTransientAudioRef.current.delete(audio)
+      audio.removeEventListener('ended', cleanup)
+      audio.removeEventListener('error', cleanup)
+    }
+    audio.addEventListener('ended', cleanup)
+    audio.addEventListener('error', cleanup)
+  }, [])
 
   const playSfx = useCallback((key: OneShotSfxKey) => {
-    if (soundsMuted) return
+    if (soundsMuted || !appVisible) return
     const base = sfxClipsRef.current[key]
     if (!base) return
 
     const clip = base.cloneNode() as HTMLAudioElement
     clip.volume = base.volume
+    trackTransientAudio(clip)
     void clip.play().catch(() => {})
-  }, [soundsMuted])
+  }, [appVisible, soundsMuted, trackTransientAudio])
 
   useEffect(() => {
     const clips: Partial<Record<OneShotSfxKey, HTMLAudioElement>> = {}
@@ -168,16 +199,58 @@ export default function GameCanvas() {
     dialogueBleepRef.current = dialogueBleep
 
     return () => {
-      if (footstepTimerRef.current !== null) {
-        window.clearInterval(footstepTimerRef.current)
-        footstepTimerRef.current = null
-      }
+      stopTransientAudio()
       dialogueBleep.pause()
       footstepBasesRef.current = { outdoor: [], indoor: [] }
       dialogueBleepRef.current = null
       sfxClipsRef.current = {}
     }
+  }, [stopTransientAudio])
+
+  useEffect(() => {
+    const updatePortraitMode = () => {
+      setPortraitTouchMode(isTouchDevice && window.innerHeight > window.innerWidth)
+    }
+
+    window.addEventListener('resize', updatePortraitMode)
+    window.addEventListener('orientationchange', updatePortraitMode)
+    return () => {
+      window.removeEventListener('resize', updatePortraitMode)
+      window.removeEventListener('orientationchange', updatePortraitMode)
+    }
+  }, [isTouchDevice])
+
+  useEffect(() => {
+    const markHidden = () => setAppVisible(false)
+    const markVisible = () => {
+      if (document.visibilityState !== 'hidden') setAppVisible(true)
+    }
+    const handleVisibility = () => {
+      setAppVisible(document.visibilityState !== 'hidden')
+    }
+
+    document.addEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('pagehide', markHidden)
+    window.addEventListener('blur', markHidden)
+    window.addEventListener('pageshow', markVisible)
+    window.addEventListener('focus', markVisible)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('pagehide', markHidden)
+      window.removeEventListener('blur', markHidden)
+      window.removeEventListener('pageshow', markVisible)
+      window.removeEventListener('focus', markVisible)
+    }
   }, [])
+
+  useEffect(() => {
+    if (!appVisible) {
+      mainMusicRef.current?.pause()
+      indoorMusicRef.current?.pause()
+      dialogueBleepRef.current?.pause()
+      stopTransientAudio()
+    }
+  }, [appVisible, stopTransientAudio])
 
   // ── Welcome screen (blocks input until dismissed) ─────────────────────────
   const [showWelcome, setShowWelcome] = useState(shouldShowWelcome)
@@ -279,7 +352,7 @@ export default function GameCanvas() {
     main.volume = OVERWORLD_MUSIC_VOLUME
     indoor.volume = INTERIOR_MUSIC_VOLUME
 
-    const soundtrackEnabled = isReady && !showWelcome && !showMobilePrompt
+    const soundtrackEnabled = appVisible && isReady && !showWelcome && !showMobilePrompt
     const targetKey: TrackKey = currentRoomId === 'overworld' ? 'main' : 'indoor'
     const target = targetKey === 'main' ? main : indoor
     const other = targetKey === 'main' ? indoor : main
@@ -344,11 +417,12 @@ export default function GameCanvas() {
     if (target.paused) {
       void target.play().catch(() => {})
     }
-  }, [currentRoomId, isReady, musicMuted, showMobilePrompt, showWelcome])
+  }, [appVisible, currentRoomId, isReady, musicMuted, showMobilePrompt, showWelcome])
 
   useEffect(() => {
     const shouldPlay =
       isReady &&
+      appVisible &&
       !showWelcome &&
       !showMobilePrompt &&
       !showMap &&
@@ -375,6 +449,7 @@ export default function GameCanvas() {
       footstepIndexRef.current += 1
       const clip = base.cloneNode() as HTMLAudioElement
       clip.volume = base.volume
+      trackTransientAudio(clip)
       void clip.play().catch(() => {})
     }
 
@@ -387,7 +462,7 @@ export default function GameCanvas() {
         footstepTimerRef.current = null
       }
     }
-  }, [currentRoomId, interaction, isReady, playerWalking, showMap, showMobilePrompt, showWelcome, soundsMuted])
+  }, [appVisible, currentRoomId, interaction, isReady, playerWalking, showMap, showMobilePrompt, showWelcome, soundsMuted, trackTransientAudio])
 
   const previousRoomIdRef = useRef<string | null>(null)
   useEffect(() => {
@@ -457,7 +532,7 @@ export default function GameCanvas() {
       lastDialogueBleepCharRef.current = 0
       return
     }
-    if (soundsMuted) return
+    if (soundsMuted || !appVisible) return
     if (visibleChars - lastDialogueBleepCharRef.current < 2) return
 
     lastDialogueBleepCharRef.current = visibleChars
@@ -467,8 +542,9 @@ export default function GameCanvas() {
     const clip = base.cloneNode() as HTMLAudioElement
     clip.volume = base.volume
     clip.playbackRate = DIALOGUE_BLEEP_PLAYBACK_RATE
+    trackTransientAudio(clip)
     void clip.play().catch(() => {})
-  }, [soundsMuted])
+  }, [appVisible, soundsMuted, trackTransientAudio])
 
   // ── Derive overlay from interaction ─────────────────────────────────────
   let overlay: React.ReactNode = null
@@ -570,13 +646,16 @@ export default function GameCanvas() {
       {showMobilePrompt && (
         <div style={styles.mobilePrompt}>
           <p style={styles.mobileTitle}>Zain's World</p>
-          <p style={styles.mobileText}>This experience is best on desktop.</p>
+          <p style={styles.mobileText}>
+            Rotate your phone horizontally for the cleanest layout.
+            Portrait mode is cramped and the controls start overlapping.
+          </p>
           <div style={styles.mobileButtons}>
             <button
               style={styles.mobileBtn}
-              onClick={() => setShowMobilePrompt(false)}
+              onClick={() => setMobilePromptDismissed(true)}
             >
-              Try anyway
+              Continue anyway
             </button>
             <a href="/portfolio" style={styles.mobileBtnAlt}>View portfolio</a>
           </div>
@@ -622,7 +701,10 @@ export default function GameCanvas() {
       {showInteractionPrompt && !overlay && !showMap && !showWelcome && <InteractionPrompt />}
       {overlay}
       {showMap && <MapOverlay engineRef={engineRef} onClose={closeMap} />}
-      <MobileControls inputManager={inputManager} />
+      <MobileControls
+        inputManager={inputManager}
+        mode={interaction?.id === 'arcade-cabinet' ? 'snake' : 'game'}
+      />
     </div>
   )
 }

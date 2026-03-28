@@ -17,6 +17,7 @@ const DISPLAY_SIZE = Math.round(CANVAS_SIZE * DISPLAY_SCALE)
 
 type Dir = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT'
 type Pos = { x: number; y: number }
+type MobileSnakeDirection = 'up' | 'down' | 'left' | 'right'
 
 interface LeaderboardEntry {
   rank: number
@@ -33,6 +34,7 @@ interface LeaderboardData {
 let sessionHighScore = 0
 
 const API_URL = '/api/snake-leaderboard'
+const isTouchDevice = 'ontouchstart' in window
 
 export default function SnakeGame({ onClose }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -46,6 +48,10 @@ export default function SnakeGame({ onClose }: Props) {
   const [lbLoading, setLbLoading] = useState(true)
   const [lbError, setLbError] = useState<string | null>(null)
   const [showLeaderboard, setShowLeaderboard] = useState(false)
+  const [viewport, setViewport] = useState(() => ({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  }))
 
   // Submission state
   const [username, setUsername] = useState('')
@@ -78,6 +84,22 @@ export default function SnakeGame({ onClose }: Props) {
     sfxHs.current.volume = 0.4
   }, [])
 
+  useEffect(() => {
+    const updateViewport = () => {
+      setViewport({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      })
+    }
+
+    window.addEventListener('resize', updateViewport)
+    window.addEventListener('orientationchange', updateViewport)
+    return () => {
+      window.removeEventListener('resize', updateViewport)
+      window.removeEventListener('orientationchange', updateViewport)
+    }
+  }, [])
+
   function playSfx(audio: HTMLAudioElement | null) {
     if (!audio) return
     audio.currentTime = 0
@@ -89,6 +111,21 @@ export default function SnakeGame({ onClose }: Props) {
       if (ref.current) { ref.current.pause(); ref.current.currentTime = 0 }
     }
   }
+
+  useEffect(() => {
+    const stopOnHide = () => {
+      if (document.visibilityState === 'hidden') {
+        stopAllSfx()
+      }
+    }
+
+    document.addEventListener('visibilitychange', stopOnHide)
+    window.addEventListener('pagehide', stopAllSfx)
+    return () => {
+      document.removeEventListener('visibilitychange', stopOnHide)
+      window.removeEventListener('pagehide', stopAllSfx)
+    }
+  }, [])
 
   function randomFood(snakeBody: Pos[]): Pos {
     let pos: Pos
@@ -176,6 +213,13 @@ export default function SnakeGame({ onClose }: Props) {
 
   // ---------- game loop ----------
 
+  const queueDirection = useCallback((next: Dir) => {
+    if (next === 'UP' && dir.current !== 'DOWN') nextDir.current = 'UP'
+    if (next === 'DOWN' && dir.current !== 'UP') nextDir.current = 'DOWN'
+    if (next === 'LEFT' && dir.current !== 'RIGHT') nextDir.current = 'LEFT'
+    if (next === 'RIGHT' && dir.current !== 'LEFT') nextDir.current = 'RIGHT'
+  }, [])
+
   useEffect(() => {
     const ctx = canvasRef.current?.getContext('2d')
     if (!ctx) return
@@ -208,26 +252,37 @@ export default function SnakeGame({ onClose }: Props) {
 
       let handled = false
 
-      if ((e.code === 'ArrowUp' || (!inputFocused && e.code === 'KeyW')) && dir.current !== 'DOWN') {
-        nextDir.current = 'UP'
+      if (e.code === 'ArrowUp' || (!inputFocused && e.code === 'KeyW')) {
+        queueDirection('UP')
         handled = true
       }
-      if ((e.code === 'ArrowDown' || (!inputFocused && e.code === 'KeyS')) && dir.current !== 'UP') {
-        nextDir.current = 'DOWN'
+      if (e.code === 'ArrowDown' || (!inputFocused && e.code === 'KeyS')) {
+        queueDirection('DOWN')
         handled = true
       }
-      if ((e.code === 'ArrowLeft' || (!inputFocused && e.code === 'KeyA')) && dir.current !== 'RIGHT') {
-        nextDir.current = 'LEFT'
+      if (e.code === 'ArrowLeft' || (!inputFocused && e.code === 'KeyA')) {
+        queueDirection('LEFT')
         handled = true
       }
-      if ((e.code === 'ArrowRight' || (!inputFocused && e.code === 'KeyD')) && dir.current !== 'LEFT') {
-        nextDir.current = 'RIGHT'
+      if (e.code === 'ArrowRight' || (!inputFocused && e.code === 'KeyD')) {
+        queueDirection('RIGHT')
         handled = true
       }
 
       if (handled) e.preventDefault()
     }
+
+    const handleMobileDirection = (event: Event) => {
+      if (showLeaderboard || gameOver) return
+      const { detail } = event as CustomEvent<MobileSnakeDirection>
+      if (detail === 'up') queueDirection('UP')
+      if (detail === 'down') queueDirection('DOWN')
+      if (detail === 'left') queueDirection('LEFT')
+      if (detail === 'right') queueDirection('RIGHT')
+    }
+
     window.addEventListener('keydown', handleKey)
+    window.addEventListener('snake-mobile-direction', handleMobileDirection as EventListener)
 
     const loop = (ts: number) => {
       rafId.current = requestAnimationFrame(loop)
@@ -302,9 +357,10 @@ export default function SnakeGame({ onClose }: Props) {
     rafId.current = requestAnimationFrame(loop)
     return () => {
       window.removeEventListener('keydown', handleKey)
+      window.removeEventListener('snake-mobile-direction', handleMobileDirection as EventListener)
       if (rafId.current) cancelAnimationFrame(rafId.current)
     }
-  }, [gameOver, onClose, runId, showLeaderboard])
+  }, [gameOver, onClose, queueDirection, runId, showLeaderboard])
 
   // ---------- render helpers ----------
 
@@ -313,24 +369,35 @@ export default function SnakeGame({ onClose }: Props) {
   const topScoreDisplay = leaderboard?.topScore
     ? `${leaderboard.topScore.username} - ${leaderboard.topScore.score}`
     : lbLoading ? '...' : '—'
+  const compactMobile = isTouchDevice && viewport.width > viewport.height
+  const boardPx = Math.round(Math.max(
+    compactMobile ? 190 : 220,
+    Math.min(
+      DISPLAY_SIZE,
+      viewport.width * (compactMobile ? 0.62 : 0.9),
+      viewport.height - (compactMobile ? 130 : 220),
+    ),
+  ))
 
   return (
     <div style={styles.backdrop}>
-      <div style={styles.panel}>
+      <div style={{ ...styles.panel, maxWidth: compactMobile ? '94vw' : 'unset' }}>
         {/* Header */}
-        <div style={styles.header}>
-          <span style={styles.headerText}>SNAKE</span>
-          <span style={styles.headerText}>Score: {score} | Best: {highScore}</span>
+        <div style={{ ...styles.header, padding: compactMobile ? '0.42rem 0.65rem' : styles.header.padding }}>
+          <span style={{ ...styles.headerText, fontSize: compactMobile ? '0.52rem' : styles.headerText.fontSize }}>SNAKE</span>
+          <span style={{ ...styles.headerText, fontSize: compactMobile ? '0.48rem' : styles.headerText.fontSize }}>
+            Score: {score} | Best: {highScore}
+          </span>
           <button style={styles.closeBtn} onClick={onClose}>✕</button>
         </div>
 
         {/* Leaderboard high score bar */}
-        <div style={styles.lbBar}>
-          <span style={styles.lbBarText}>
+        <div style={{ ...styles.lbBar, padding: compactMobile ? '0.3rem 0.65rem' : styles.lbBar.padding }}>
+          <span style={{ ...styles.lbBarText, fontSize: compactMobile ? '0.4rem' : styles.lbBarText.fontSize }}>
             Leaderboard High Score: {topScoreDisplay}
           </span>
           <button
-            style={styles.viewLbBtn}
+            style={{ ...styles.viewLbBtn, fontSize: compactMobile ? '0.38rem' : styles.viewLbBtn.fontSize }}
             onClick={() => { stopAllSfx(); setShowLeaderboard(true) }}
           >
             View Leaderboard
@@ -338,7 +405,7 @@ export default function SnakeGame({ onClose }: Props) {
         </div>
 
         {/* Game board */}
-        <div style={styles.boardWrap}>
+        <div style={{ ...styles.boardWrap, width: `${boardPx}px`, height: `${boardPx}px` }}>
           <canvas
             ref={canvasRef}
             width={CANVAS_SIZE}
@@ -435,15 +502,15 @@ export default function SnakeGame({ onClose }: Props) {
             </div>
           )}
         </div>
-        <p style={styles.hint}>Arrow keys or WASD to move · Esc to close</p>
+        <p style={{ ...styles.hint, fontSize: compactMobile ? '0.42rem' : styles.hint.fontSize, padding: compactMobile ? '0.42rem 0.5rem' : styles.hint.padding }}>
+          {isTouchDevice ? 'Arrow keys, WASD, or mobile arrows · Esc to close' : 'Arrow keys or WASD to move · Esc to close'}
+        </p>
       </div>
     </div>
   )
 }
 
 // ---------- styles ----------
-
-const boardSize = `min(90vw, 72vh, ${DISPLAY_SIZE}px)`
 
 const styles: Record<string, React.CSSProperties> = {
   backdrop: {
@@ -515,8 +582,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
   boardWrap: {
     position: 'relative',
-    width: boardSize,
-    height: boardSize,
   },
   canvas: {
     display: 'block',
