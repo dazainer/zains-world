@@ -74,7 +74,6 @@ const INDOOR_FOOTSTEP_PATHS = [
 ] as const
 
 export default function GameCanvas() {
-  const isTouchDevice = 'ontouchstart' in window
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const photoOverlayRef = useRef<HTMLCanvasElement>(null)
   const mainMusicRef = useRef<HTMLAudioElement | null>(null)
@@ -121,12 +120,6 @@ export default function GameCanvas() {
     return () => observer.disconnect()
   }, [isReady, engineRef])
 
-  // Mobile prompt: only shown for small touch screens (< 480px).
-  // Stored in dismissal state so "Continue anyway" can hide it.
-  const [mobilePromptDismissed, setMobilePromptDismissed] = useState(false)
-  const [portraitTouchMode, setPortraitTouchMode] = useState(
-    () => isTouchDevice && window.innerHeight > window.innerWidth,
-  )
   const [appVisible, setAppVisible] = useState(
     () => typeof document === 'undefined' ? true : document.visibilityState !== 'hidden',
   )
@@ -134,7 +127,6 @@ export default function GameCanvas() {
   const [soundsMuted, setSoundsMuted] = useState(false)
   const [currentRoomId, setCurrentRoomId] = useState('overworld')
   const [playerWalking, setPlayerWalking] = useState(false)
-  const showMobilePrompt = portraitTouchMode && !mobilePromptDismissed
 
   const stopTransientAudio = useCallback(() => {
     for (const audio of activeTransientAudioRef.current) {
@@ -206,19 +198,6 @@ export default function GameCanvas() {
       sfxClipsRef.current = {}
     }
   }, [stopTransientAudio])
-
-  useEffect(() => {
-    const updatePortraitMode = () => {
-      setPortraitTouchMode(isTouchDevice && window.innerHeight > window.innerWidth)
-    }
-
-    window.addEventListener('resize', updatePortraitMode)
-    window.addEventListener('orientationchange', updatePortraitMode)
-    return () => {
-      window.removeEventListener('resize', updatePortraitMode)
-      window.removeEventListener('orientationchange', updatePortraitMode)
-    }
-  }, [isTouchDevice])
 
   useEffect(() => {
     const markHidden = () => setAppVisible(false)
@@ -352,7 +331,7 @@ export default function GameCanvas() {
     main.volume = OVERWORLD_MUSIC_VOLUME
     indoor.volume = INTERIOR_MUSIC_VOLUME
 
-    const soundtrackEnabled = appVisible && isReady && !showWelcome && !showMobilePrompt
+    const soundtrackEnabled = appVisible && isReady && !showWelcome
     const targetKey: TrackKey = currentRoomId === 'overworld' ? 'main' : 'indoor'
     const target = targetKey === 'main' ? main : indoor
     const other = targetKey === 'main' ? indoor : main
@@ -417,14 +396,13 @@ export default function GameCanvas() {
     if (target.paused) {
       void target.play().catch(() => {})
     }
-  }, [appVisible, currentRoomId, isReady, musicMuted, showMobilePrompt, showWelcome])
+  }, [appVisible, currentRoomId, isReady, musicMuted, showWelcome])
 
   useEffect(() => {
     const shouldPlay =
       isReady &&
       appVisible &&
       !showWelcome &&
-      !showMobilePrompt &&
       !showMap &&
       !interaction &&
       playerWalking &&
@@ -462,7 +440,7 @@ export default function GameCanvas() {
         footstepTimerRef.current = null
       }
     }
-  }, [appVisible, currentRoomId, interaction, isReady, playerWalking, showMap, showMobilePrompt, showWelcome, soundsMuted, trackTransientAudio])
+  }, [appVisible, currentRoomId, interaction, isReady, playerWalking, showMap, showWelcome, soundsMuted, trackTransientAudio])
 
   const previousRoomIdRef = useRef<string | null>(null)
   useEffect(() => {
@@ -642,26 +620,6 @@ export default function GameCanvas() {
         </div>
       )}
 
-      {/* Mobile prompt overlays the game instead of replacing it so the engine can mount and load. */}
-      {showMobilePrompt && (
-        <div style={styles.mobilePrompt}>
-          <p style={styles.mobileTitle}>Zain's World</p>
-          <p style={styles.mobileText}>
-            Rotate your phone horizontally for the cleanest layout.
-            Portrait mode is cramped and the controls start overlapping.
-          </p>
-          <div style={styles.mobileButtons}>
-            <button
-              style={styles.mobileBtn}
-              onClick={() => setMobilePromptDismissed(true)}
-            >
-              Continue anyway
-            </button>
-            <a href="/portfolio" style={styles.mobileBtnAlt}>View portfolio</a>
-          </div>
-        </div>
-      )}
-
       {/* Welcome screen (shown after loading, blocks game input) */}
       {isReady && showWelcome && (
         <WelcomeScreen
@@ -679,6 +637,7 @@ export default function GameCanvas() {
               ...styles.muteButton,
               ...(musicMuted ? styles.muteButtonMuted : null),
             }}
+            onContextMenu={e => e.preventDefault()}
             onClick={() => setMusicMuted(prev => !prev)}
           >
             {musicMuted ? 'MUSIC OFF' : 'MUSIC ON'}
@@ -691,6 +650,7 @@ export default function GameCanvas() {
               ...styles.muteButton,
               ...(soundsMuted ? styles.muteButtonMuted : null),
             }}
+            onContextMenu={e => e.preventDefault()}
             onClick={() => setSoundsMuted(prev => !prev)}
           >
             {soundsMuted ? 'SOUNDS OFF' : 'SOUNDS ON'}
@@ -763,6 +723,11 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     boxShadow: '0 10px 22px rgba(0, 0, 0, 0.24)',
     backdropFilter: 'blur(4px)',
+    userSelect: 'none',
+    WebkitUserSelect: 'none',
+    WebkitTouchCallout: 'none',
+    WebkitTapHighlightColor: 'transparent',
+    touchAction: 'manipulation',
   },
   muteButtonMuted: {
     opacity: 0.72,
@@ -801,59 +766,4 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'width 0.15s ease-out',
   },
 
-  // Mobile prompt
-  mobilePrompt: {
-    position: 'absolute',
-    inset: 0,
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '1rem',
-    padding: '2rem',
-    textAlign: 'center',
-    background: '#1a1008',
-    color: '#f5e6c8',
-    zIndex: 90,
-  },
-  mobileTitle: {
-    fontFamily: "'Press Start 2P', monospace",
-    fontSize: '1rem',
-    color: '#c8a850',
-    marginBottom: '0.5rem',
-  },
-  mobileText: {
-    fontFamily: "'Press Start 2P', monospace",
-    fontSize: '0.65rem',
-    lineHeight: 1.8,
-    color: '#a89070',
-  },
-  mobileButtons: {
-    display: 'flex',
-    gap: '0.75rem',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    marginTop: '0.5rem',
-  },
-  mobileBtn: {
-    padding: '0.75rem 1.5rem',
-    background: '#c8a850',
-    color: '#1a1008',
-    border: 'none',
-    cursor: 'pointer',
-    fontFamily: "'Press Start 2P', monospace",
-    fontSize: '0.55rem',
-    textDecoration: 'none',
-  },
-  mobileBtnAlt: {
-    padding: '0.75rem 1.5rem',
-    background: 'transparent',
-    color: '#c8a850',
-    border: '2px solid #c8a850',
-    cursor: 'pointer',
-    fontFamily: "'Press Start 2P', monospace",
-    fontSize: '0.55rem',
-    textDecoration: 'none',
-    display: 'inline-block',
-  },
 }

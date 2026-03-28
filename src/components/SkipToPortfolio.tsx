@@ -4,7 +4,12 @@
  */
 export default function SkipToPortfolio() {
   return (
-    <a href="/portfolio" style={styles.link}>
+    <a
+      href="/portfolio"
+      style={styles.link}
+      draggable={false}
+      onContextMenu={e => e.preventDefault()}
+    >
       Skip to Portfolio →
     </a>
   )
@@ -24,5 +29,13 @@ const styles: Record<string, React.CSSProperties> = {
     textDecoration: 'none',
     zIndex: 50,
     lineHeight: 1.4,
+    userSelect: 'none',
+    WebkitUserSelect: 'none',
+    WebkitTouchCallout: 'none',
+    WebkitTapHighlightColor: 'transparent',
+    touchAction: 'manipulation',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 }

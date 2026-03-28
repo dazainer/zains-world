@@ -55,8 +55,18 @@ export default function MobileControls({ inputManager, mode = 'game' }: Props) {
     </button>
   )
 
+  const wrapperStyle: React.CSSProperties = mode === 'snake'
+    ? {
+        ...styles.wrapper,
+        justifyContent: 'center',
+        padding: '0 1rem',
+        bottom: '0.8rem',
+        zIndex: 80,
+      }
+    : styles.wrapper
+
   return (
-    <div style={styles.wrapper}>
+    <div style={wrapperStyle}>
       {/* D-pad */}
       <div style={styles.dpad}>
         {dpadBtn('up', '\u25B2')}

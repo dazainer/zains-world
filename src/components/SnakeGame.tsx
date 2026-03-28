@@ -370,18 +370,39 @@ export default function SnakeGame({ onClose }: Props) {
     ? `${leaderboard.topScore.username} - ${leaderboard.topScore.score}`
     : lbLoading ? '...' : '—'
   const compactMobile = isTouchDevice && viewport.width > viewport.height
+  const touchControlsReserve = isTouchDevice ? (compactMobile ? 110 : 146) : 0
+  const chromeReserve = compactMobile ? 138 : 216
   const boardPx = Math.round(Math.max(
-    compactMobile ? 190 : 220,
+    compactMobile ? 170 : 180,
     Math.min(
       DISPLAY_SIZE,
-      viewport.width * (compactMobile ? 0.62 : 0.9),
-      viewport.height - (compactMobile ? 130 : 220),
+      viewport.width - (compactMobile ? 96 : 26),
+      viewport.height - chromeReserve - touchControlsReserve,
     ),
   ))
+  const panelWidth = isTouchDevice
+    ? Math.min(viewport.width - 12, Math.max(boardPx + 6, compactMobile ? 290 : 320))
+    : undefined
+  const mobileButtonColumn = isTouchDevice
+  const mobileInputColumn = isTouchDevice && !compactMobile
 
   return (
-    <div style={styles.backdrop}>
-      <div style={{ ...styles.panel, maxWidth: compactMobile ? '94vw' : 'unset' }}>
+    <div
+      style={{
+        ...styles.backdrop,
+        padding: isTouchDevice
+          ? (compactMobile ? '0.6rem 0.6rem 6.6rem' : '0.6rem 0.6rem 9rem')
+          : '1rem',
+      }}
+    >
+      <div
+        style={{
+          ...styles.panel,
+          width: panelWidth ? `${panelWidth}px` : 'auto',
+          maxWidth: isTouchDevice ? 'calc(100vw - 0.75rem)' : 'unset',
+          maxHeight: isTouchDevice ? `calc(100vh - ${compactMobile ? '7.3rem' : '9.5rem'})` : 'unset',
+        }}
+      >
         {/* Header */}
         <div style={{ ...styles.header, padding: compactMobile ? '0.42rem 0.65rem' : styles.header.padding }}>
           <span style={{ ...styles.headerText, fontSize: compactMobile ? '0.52rem' : styles.headerText.fontSize }}>SNAKE</span>
@@ -423,7 +444,14 @@ export default function SnakeGame({ onClose }: Props) {
               {qualifies && !submitted && (
                 <div style={styles.submitSection}>
                   <p style={styles.qualifyText}>Top 10 score! Enter a username to submit:</p>
-                  <form onSubmit={handleSubmit} style={styles.submitForm}>
+                  <form
+                    onSubmit={handleSubmit}
+                    style={{
+                      ...styles.submitForm,
+                      flexDirection: mobileInputColumn ? 'column' : 'row',
+                      width: mobileInputColumn ? '100%' : undefined,
+                    }}
+                  >
                     <input
                       type="text"
                       value={username}
@@ -432,7 +460,11 @@ export default function SnakeGame({ onClose }: Props) {
                       maxLength={16}
                       minLength={3}
                       autoFocus
-                      style={styles.usernameInput}
+                      style={{
+                        ...styles.usernameInput,
+                        width: mobileInputColumn ? '100%' : styles.usernameInput.width,
+                        maxWidth: mobileInputColumn ? '13rem' : undefined,
+                      }}
                       disabled={submitting}
                     />
                     <button
@@ -455,9 +487,31 @@ export default function SnakeGame({ onClose }: Props) {
                 <p style={styles.successText}>Score submitted!</p>
               )}
 
-              <div style={styles.gameOverBtns}>
-                <button style={styles.restartBtn} onClick={restart}>Play Again</button>
-                <button style={styles.viewLbBtnAlt} onClick={() => { stopAllSfx(); setShowLeaderboard(true) }}>
+              <div
+                style={{
+                  ...styles.gameOverBtns,
+                  flexDirection: mobileButtonColumn ? 'column' : 'row',
+                  width: mobileButtonColumn ? '100%' : undefined,
+                }}
+              >
+                <button
+                  style={{
+                    ...styles.restartBtn,
+                    width: mobileButtonColumn ? '100%' : undefined,
+                    maxWidth: mobileButtonColumn ? '13rem' : undefined,
+                  }}
+                  onClick={restart}
+                >
+                  Play Again
+                </button>
+                <button
+                  style={{
+                    ...styles.viewLbBtnAlt,
+                    width: mobileButtonColumn ? '100%' : undefined,
+                    maxWidth: mobileButtonColumn ? '13rem' : undefined,
+                  }}
+                  onClick={() => { stopAllSfx(); setShowLeaderboard(true) }}
+                >
                   View Leaderboard
                 </button>
               </div>
