@@ -1592,15 +1592,18 @@ export class GameEngine {
         ctx.stroke()
       } else {
         ctx.fillStyle = '#ce9178'
-        ctx.fillRect(screenX + 4, screenY + 4, 5, 3)
-        ctx.fillRect(screenX + 11, screenY + 6, 6, 3)
-        ctx.fillRect(screenX + 19, screenY + 4, 4, 3)
+        ctx.fillRect(screenX + 4, screenY + 4, 16, 1)
+        ctx.fillRect(screenX + 4, screenY + 7, 10, 1)
+        ctx.fillRect(screenX + 4, screenY + 10, 7, 1)
+        const pulseX = 15 + Math.floor((Date.now() / 220) % 8)
+        ctx.fillStyle = '#f0b27a'
+        ctx.fillRect(screenX + pulseX, screenY + 9, 2, 2)
         ctx.strokeStyle = '#ce9178'
         ctx.beginPath()
-        ctx.moveTo(screenX + 8, screenY + 6)
-        ctx.lineTo(screenX + 11, screenY + 7)
-        ctx.lineTo(screenX + 17, screenY + 7)
-        ctx.lineTo(screenX + 19, screenY + 6)
+        ctx.moveTo(screenX + 18, screenY + 5)
+        ctx.lineTo(screenX + 21, screenY + 5)
+        ctx.lineTo(screenX + 21, screenY + 11)
+        ctx.lineTo(screenX + 18, screenY + 11)
         ctx.stroke()
       }
 

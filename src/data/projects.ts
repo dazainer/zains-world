@@ -37,15 +37,15 @@ export const projects: Project[] = [
     monitorAnimation: 'chart',
   },
   {
-    id: 'fantasy-founders',
-    name: 'Fantasy Founders',
-    tagline: 'Fantasy sports meets startup investing',
+    id: 'meeting-copilot',
+    name: 'Meeting Copilot',
+    tagline: 'Local-first AI meeting intelligence',
     description:
-      'A fantasy-sports-style game where players draft and trade real startups, earning points based on live funding rounds, acquisitions, and milestones. Built with React, Node.js, and real-time data feeds.',
-    tech: ['React', 'TypeScript', 'Node.js', 'PostgreSQL', 'WebSockets'],
-    github: 'https://github.com/PLIAN78/GOONHack',
+      'Built an AI meeting copilot that ingests transcripts, stores pgvector embeddings for semantic search, extracts structured action items with a local LLM, and exposes the workflow through a FastAPI backend and React dashboard.',
+    tech: ['Python', 'FastAPI', 'PostgreSQL', 'pgvector', 'React', 'Ollama'],
+    github: 'https://github.com/dazainer/meeting-copilot',
     demo: null,
     image: null,
-    monitorAnimation: 'chart',
+    monitorAnimation: 'pipeline',
   },
 ]

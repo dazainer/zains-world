@@ -1,6 +1,6 @@
 /**
  * Projects Lab — compact workshop interior.
- * 3 workstations along the north wall (SpecGuard, Expense Tracker, Fantasy Founders).
+ * 3 workstations along the north wall (SpecGuard, Expense Tracker, Meeting Copilot).
  * Each station has a desk (wall blocks), a colored marker above, and interaction tiles.
  * Decorative props (pots, barrels, crates) scattered around the room.
  * Exit door at bottom-centre returns to overworld at the Temple building.
@@ -54,8 +54,8 @@ const interactionZones: InteractionZoneDef[] = [
   { col: 3,  row: 4, id: 'station-specguard',        payload: 'specguard' },
   { col: 5,  row: 4, id: 'station-expense-tracker',   payload: 'expense-tracker' },
   { col: 6,  row: 4, id: 'station-expense-tracker',   payload: 'expense-tracker' },
-  { col: 8,  row: 4, id: 'station-fantasy-founders',  payload: 'fantasy-founders' },
-  { col: 9,  row: 4, id: 'station-fantasy-founders',  payload: 'fantasy-founders' },
+  { col: 8,  row: 4, id: 'station-meeting-copilot',   payload: 'meeting-copilot' },
+  { col: 9,  row: 4, id: 'station-meeting-copilot',   payload: 'meeting-copilot' },
 ]
 
 // ── Station decoration metadata (consumed by GameEngine.renderInterior) ─────
@@ -70,7 +70,7 @@ export interface StationDeco {
 export const stationDecos: StationDeco[] = [
   { label: 'SpecGuard',        color: '#4ec9b0', deskCols: [2, 3], deskRow: 3, markerRow: 2 },
   { label: 'Expense Tracker',  color: '#dcdcaa', deskCols: [5, 6], deskRow: 3, markerRow: 2 },
-  { label: 'Fantasy Founders', color: '#ce9178', deskCols: [8, 9], deskRow: 3, markerRow: 2 },
+  { label: 'Meeting Copilot',  color: '#ce9178', deskCols: [8, 9], deskRow: 3, markerRow: 2 },
 ]
 
 const spriteDecos = [
