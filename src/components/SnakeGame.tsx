@@ -45,10 +45,25 @@ interface LeaderboardData {
   cutoffScore: number | null
 }
 
+interface ApiErrorPayload {
+  error?: string
+}
+
 let sessionHighScore = 0
 
 const API_URL = '/api/snake-leaderboard'
 const isTouchDevice = 'ontouchstart' in window
+
+async function readApiPayload<T>(res: Response): Promise<T | ApiErrorPayload> {
+  const text = await res.text()
+  if (!text) return {}
+
+  try {
+    return JSON.parse(text) as T | ApiErrorPayload
+  } catch {
+    return { error: text }
+  }
+}
 
 export default function SnakeGame({ onClose }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -166,11 +181,13 @@ export default function SnakeGame({ onClose }: Props) {
     setLbError(null)
     try {
       const res = await fetch(API_URL)
-      if (!res.ok) throw new Error('Failed to fetch')
-      const data: LeaderboardData = await res.json()
-      setLeaderboard(data)
-    } catch {
-      setLbError('Unable to load leaderboard')
+      const data = await readApiPayload<LeaderboardData>(res)
+      if (!res.ok) {
+        throw new Error(('error' in data && data.error) || 'Unable to load leaderboard')
+      }
+      setLeaderboard(data as LeaderboardData)
+    } catch (error) {
+      setLbError(error instanceof Error ? error.message : 'Unable to load leaderboard')
     } finally {
       setLbLoading(false)
     }
@@ -235,9 +252,9 @@ export default function SnakeGame({ onClose }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'start' }),
       })
-      const data = await res.json()
+      const data = await readApiPayload<SnakeRunSession>(res)
       if (!res.ok) {
-        throw new Error(data.error || 'Unable to start verified run')
+        throw new Error(('error' in data && data.error) || 'Unable to start verified run')
       }
       initializeVerifiedRun(data as SnakeRunSession)
     } catch (error) {
@@ -285,9 +302,9 @@ export default function SnakeGame({ onClose }: Props) {
           turns: turnEventsRef.current,
         }),
       })
-      const data = await res.json()
+      const data = await readApiPayload<{ success?: boolean }>(res)
       if (!res.ok) {
-        setSubmitError(data.error || 'Unable to submit score')
+        setSubmitError(('error' in data && data.error) || 'Unable to submit score')
         return
       }
       setSubmitted(true)
