@@ -12,6 +12,7 @@ const SNAKE_MAX_SCORE = SNAKE_TOTAL_CELLS - 1
 const SNAKE_RUN_TTL_MS = 2 * 60 * 60 * 1000
 const SNAKE_MAX_TICKS_PER_RUN = Math.floor(SNAKE_RUN_TTL_MS / SNAKE_TICK_MS)
 const SNAKE_MIN_ELAPSED_SLACK_MS = 1500
+const SNAKE_ADMIN_USERNAME = 'zain'
 
 type SnakeDirection = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT'
 
@@ -286,11 +287,22 @@ const PROFANITY: string[] = [
   'cunt', 'bastard', 'slut', 'whore', 'fag', 'nigger', 'nigga',
   'retard', 'rape', 'penis', 'vagina', 'anus', 'porn', 'cum',
   'nazi', 'hitler', 'kill', 'die',
+  'kosom', 'kossom', 'kosomak', 'kosomk', 'kosomik',
+  'khawal', 'khwl', '5awal', '5wl',
+  'metnak', 'metnaka', 'mtnak', 'mtnaka',
+  'bez', 'bezaz', 'bzaz',
 ]
 
 function isProfane(name: string): boolean {
   const lower = name.toLowerCase()
   return PROFANITY.some((word) => lower.includes(word))
+}
+
+function isAdminCode(raw: unknown): raw is string {
+  if (typeof raw !== 'string' || raw.trim() === '') return false
+  const adminCode = process.env.SNAKE_ADMIN_CODE?.trim()
+  if (!adminCode) return false
+  return raw.trim() === adminCode
 }
 
 function validateUsername(raw: unknown): { ok: true; display: string; normalized: string } | { ok: false; error: string; status: number } {
@@ -373,8 +385,11 @@ function validateTurns(raw: unknown): SnakeTurnEvent[] | null {
 
 async function handleSubmit(body: SnakeRunSubmitRequest, res: VercelResponse) {
   const { username: rawUsername, score, runToken, turns: rawTurns } = body
+  const adminOverride = isAdminCode(rawUsername)
 
-  const usernameResult = validateUsername(rawUsername)
+  const usernameResult = adminOverride
+    ? { ok: true as const, display: SNAKE_ADMIN_USERNAME, normalized: SNAKE_ADMIN_USERNAME }
+    : validateUsername(rawUsername)
   if (usernameResult.ok === false) {
     return res.status(usernameResult.status).json({ error: usernameResult.error })
   }
@@ -452,20 +467,22 @@ async function handleSubmit(body: SnakeRunSubmitRequest, res: VercelResponse) {
   const existing = await sql`
     SELECT 1 FROM snake_leaderboard_entries WHERE username_normalized = ${normalized} LIMIT 1
   `
-  if (existing.length > 0) {
+  if (!adminOverride && existing.length > 0) {
     return res.status(409).json({ error: 'Username already taken' })
   }
 
-  const topRows = await sql`
-    SELECT score FROM snake_leaderboard_entries
-    WHERE score > 0 AND score <= ${SNAKE_MAX_SCORE}
-    ORDER BY score DESC, created_at ASC
-    LIMIT 10
-  `
-  if (topRows.length >= 10) {
-    const cutoff = topRows[9].score as number
-    if (score <= cutoff) {
-      return res.status(422).json({ error: 'That score no longer qualifies for the top 10' })
+  if (!adminOverride) {
+    const topRows = await sql`
+      SELECT score FROM snake_leaderboard_entries
+      WHERE score > 0 AND score <= ${SNAKE_MAX_SCORE}
+      ORDER BY score DESC, created_at ASC
+      LIMIT 10
+    `
+    if (topRows.length >= 10) {
+      const cutoff = topRows[9].score as number
+      if (score <= cutoff) {
+        return res.status(422).json({ error: 'That score no longer qualifies for the top 10' })
+      }
     }
   }
 
@@ -479,12 +496,21 @@ async function handleSubmit(body: SnakeRunSubmitRequest, res: VercelResponse) {
     return res.status(409).json({ error: 'Run session has already been used' })
   }
 
-  await sql`
-    INSERT INTO snake_leaderboard_entries (username, username_normalized, score)
-    VALUES (${display}, ${normalized}, ${score})
-  `
+  if (adminOverride) {
+    await sql`
+      INSERT INTO snake_leaderboard_entries (username, username_normalized, score)
+      VALUES (${display}, ${normalized}, ${score})
+      ON CONFLICT (username_normalized)
+      DO UPDATE SET username = EXCLUDED.username, score = EXCLUDED.score
+    `
+  } else {
+    await sql`
+      INSERT INTO snake_leaderboard_entries (username, username_normalized, score)
+      VALUES (${display}, ${normalized}, ${score})
+    `
+  }
 
-  return res.status(201).json({ success: true, verified: true })
+  return res.status(201).json({ success: true, verified: true, adminOverride })
 }
 
 // ---------- entry point ----------

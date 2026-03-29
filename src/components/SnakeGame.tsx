@@ -92,6 +92,7 @@ export default function SnakeGame({ onClose }: Props) {
   const [runLoading, setRunLoading] = useState(true)
   const [runError, setRunError] = useState<string | null>(null)
   const [showRunLoadingFallback, setShowRunLoadingFallback] = useState(false)
+  const [showAdminEntry, setShowAdminEntry] = useState(false)
 
   const snake = useRef<Pos[]>(createInitialSnake())
   const food = useRef<Pos | null>(null)
@@ -225,6 +226,7 @@ export default function SnakeGame({ onClose }: Props) {
     setSubmitError(null)
     setUsername('')
     setShowLeaderboard(false)
+    setShowAdminEntry(false)
     setRunId((i) => i + 1)
   }, [])
 
@@ -247,6 +249,7 @@ export default function SnakeGame({ onClose }: Props) {
     setSubmitted(false)
     setSubmitError(null)
     setUsername('')
+    setShowAdminEntry(false)
 
     try {
       const session = await takeSnakeRunSession(forceFresh)
@@ -312,6 +315,7 @@ export default function SnakeGame({ onClose }: Props) {
         return
       }
       setSubmitted(true)
+      setShowAdminEntry(false)
       await fetchLeaderboard()
     } catch {
       setSubmitError('Unable to submit score')
@@ -515,6 +519,7 @@ export default function SnakeGame({ onClose }: Props) {
 
   const canSubmitScore = Boolean(runSession) && !runLoading && !runError
   const qualifies = gameOver && canSubmitScore && qualifiesForTop10(score)
+  const canShowSubmitForm = canSubmitScore && (qualifies || showAdminEntry)
 
   const topScoreDisplay = leaderboard?.topScore
     ? `${leaderboard.topScore.username} - ${leaderboard.topScore.score}`
@@ -634,9 +639,13 @@ export default function SnakeGame({ onClose }: Props) {
               <p style={styles.gameOverScore}>Score: {score}</p>
 
               {/* Qualification form */}
-              {qualifies && !submitted && (
+              {canShowSubmitForm && !submitted && (
                 <div style={styles.submitSection}>
-                  <p style={styles.qualifyText}>Top 10 score! Enter a username to submit:</p>
+                  <p style={styles.qualifyText}>
+                    {qualifies
+                      ? 'Top 10 score! Enter a username to submit:'
+                      : 'Enter a username or your code:'}
+                  </p>
                   <form
                     onSubmit={handleSubmit}
                     style={{
@@ -649,9 +658,9 @@ export default function SnakeGame({ onClose }: Props) {
                       type="text"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
-                      placeholder="Username"
+                      placeholder={qualifies ? 'Username' : 'Username or code'}
                       maxLength={16}
-                      minLength={3}
+                      minLength={1}
                       autoFocus
                       style={{
                         ...styles.usernameInput,
@@ -664,15 +673,24 @@ export default function SnakeGame({ onClose }: Props) {
                       type="submit"
                       style={{
                         ...styles.submitBtn,
-                        opacity: submitting || username.trim().length < 3 ? 0.5 : 1,
+                        opacity: submitting || username.trim().length < 1 ? 0.5 : 1,
                       }}
-                      disabled={submitting || username.trim().length < 3}
+                      disabled={submitting || username.trim().length < 1}
                     >
                       {submitting ? 'Submitting...' : 'Submit'}
                     </button>
                   </form>
                   {submitError && <p style={styles.errorText}>{submitError}</p>}
                 </div>
+              )}
+
+              {!qualifies && !showAdminEntry && !submitted && canSubmitScore && (
+                <button
+                  style={styles.viewLbBtnAlt}
+                  onClick={() => setShowAdminEntry(true)}
+                >
+                  Have a code?
+                </button>
               )}
 
               {/* Post-submit confirmation */}
