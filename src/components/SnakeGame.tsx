@@ -18,6 +18,7 @@ import {
   type SnakeRunSession,
   type SnakeTurnEvent,
 } from '../lib/snakeAntiCheat'
+import { takeSnakeRunSession } from '../lib/snakeRunSession'
 
 interface Props {
   onClose: () => void
@@ -90,6 +91,7 @@ export default function SnakeGame({ onClose }: Props) {
   const [runSession, setRunSession] = useState<SnakeRunSession | null>(null)
   const [runLoading, setRunLoading] = useState(true)
   const [runError, setRunError] = useState<string | null>(null)
+  const [showRunLoadingFallback, setShowRunLoadingFallback] = useState(false)
 
   const snake = useRef<Pos[]>(createInitialSnake())
   const food = useRef<Pos | null>(null)
@@ -226,7 +228,7 @@ export default function SnakeGame({ onClose }: Props) {
     setRunId((i) => i + 1)
   }, [])
 
-  const requestVerifiedRun = useCallback(async () => {
+  const requestVerifiedRun = useCallback(async (forceFresh = false) => {
     snake.current = createInitialSnake()
     food.current = null
     foodRng.current = null
@@ -247,16 +249,8 @@ export default function SnakeGame({ onClose }: Props) {
     setUsername('')
 
     try {
-      const res = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'start' }),
-      })
-      const data = await readApiPayload<SnakeRunSession>(res)
-      if (!res.ok) {
-        throw new Error(('error' in data && data.error) || 'Unable to start verified run')
-      }
-      initializeVerifiedRun(data as SnakeRunSession)
+      const session = await takeSnakeRunSession(forceFresh)
+      initializeVerifiedRun(session)
     } catch (error) {
       setRunError(error instanceof Error ? error.message : 'Unable to start verified run')
     } finally {
@@ -267,6 +261,16 @@ export default function SnakeGame({ onClose }: Props) {
   useEffect(() => {
     void requestVerifiedRun()
   }, [requestVerifiedRun])
+
+  useEffect(() => {
+    if (!runLoading || runError) {
+      setShowRunLoadingFallback(false)
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => setShowRunLoadingFallback(true), 450)
+    return () => window.clearTimeout(timeoutId)
+  }, [runError, runLoading])
 
   // ---------- qualification check ----------
 
@@ -319,7 +323,7 @@ export default function SnakeGame({ onClose }: Props) {
   // ---------- restart ----------
 
   function restart() {
-    void requestVerifiedRun()
+    void requestVerifiedRun(true)
   }
 
   // ---------- game loop ----------
@@ -581,7 +585,7 @@ export default function SnakeGame({ onClose }: Props) {
           />
 
           {/* Verified run startup overlay */}
-          {!showLeaderboard && (runLoading || runError) && (
+          {!showLeaderboard && (runError || (runLoading && showRunLoadingFallback)) && (
             <div style={styles.gameOver}>
               <p style={styles.gameOverText}>{runLoading ? 'VERIFYING RUN' : 'RUN UNAVAILABLE'}</p>
               <p style={styles.lbMsg}>

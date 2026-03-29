@@ -19,6 +19,7 @@ import MapOverlay from './MapOverlay'
 import ResumePrompt from './ResumePrompt'
 import WelcomeScreen, { shouldShowWelcome } from './WelcomeScreen'
 import ExperiencePhotoPanel from './ExperiencePhotoPanel'
+import { primeSnakeRunSession } from '../lib/snakeRunSession'
 import { projects } from '../data/projects'
 import { personalInfo } from '../data/personalInfo'
 import { experiences } from '../data/experience'
@@ -127,6 +128,10 @@ export default function GameCanvas() {
   const [soundsMuted, setSoundsMuted] = useState(false)
   const [currentRoomId, setCurrentRoomId] = useState('overworld')
   const [playerWalking, setPlayerWalking] = useState(false)
+
+  useEffect(() => {
+    void primeSnakeRunSession().catch(() => {})
+  }, [])
 
   const stopTransientAudio = useCallback(() => {
     for (const audio of activeTransientAudioRef.current) {
