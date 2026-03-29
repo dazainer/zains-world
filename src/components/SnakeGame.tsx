@@ -3,20 +3,34 @@
  * Canvas-based. Arrow keys to move, Escape to close.
  * Keeps a session high score + online leaderboard.
  */
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+
+import {
+  INITIAL_SNAKE_DIRECTION,
+  SNAKE_CELL,
+  SNAKE_GRID,
+  SNAKE_TICK_MS,
+  createInitialSnake,
+  createSeededSnakeRng,
+  nextSnakeFood,
+  type SnakeDirection,
+  type SnakePosition,
+  type SnakeRunSession,
+  type SnakeTurnEvent,
+} from '../lib/snakeAntiCheat'
 
 interface Props {
   onClose: () => void
 }
 
-const GRID = 20
-const CELL = 14
+const GRID = SNAKE_GRID
+const CELL = SNAKE_CELL
 const CANVAS_SIZE = GRID * CELL  // 280px
 const DISPLAY_SCALE = 1.85
 const DISPLAY_SIZE = Math.round(CANVAS_SIZE * DISPLAY_SCALE)
 
-type Dir = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT'
-type Pos = { x: number; y: number }
+type Dir = SnakeDirection
+type Pos = SnakePosition
 type MobileSnakeDirection = 'up' | 'down' | 'left' | 'right'
 
 interface LeaderboardEntry {
@@ -58,14 +72,19 @@ export default function SnakeGame({ onClose }: Props) {
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitted, setSubmitted] = useState(false)
+  const [runSession, setRunSession] = useState<SnakeRunSession | null>(null)
+  const [runLoading, setRunLoading] = useState(true)
+  const [runError, setRunError] = useState<string | null>(null)
 
-  const snake = useRef<Pos[]>([{ x: 10, y: 10 }])
-  const food = useRef<Pos>(randomFood([{ x: 10, y: 10 }]))
-  const dir = useRef<Dir>('RIGHT')
-  const nextDir = useRef<Dir>('RIGHT')
+  const snake = useRef<Pos[]>(createInitialSnake())
+  const food = useRef<Pos | null>(null)
+  const dir = useRef<Dir>(INITIAL_SNAKE_DIRECTION)
+  const nextDir = useRef<Dir>(INITIAL_SNAKE_DIRECTION)
   const rafId = useRef<number | null>(null)
   const lastTick = useRef(0)
-  const TICK_MS = 120
+  const foodRng = useRef<(() => number) | null>(null)
+  const tickCountRef = useRef(0)
+  const turnEventsRef = useRef<SnakeTurnEvent[]>([])
 
   // Track final score for game-over qualification check
   const finalScoreRef = useRef(0)
@@ -112,6 +131,19 @@ export default function SnakeGame({ onClose }: Props) {
     }
   }
 
+  const drawBoard = useCallback((ctx: CanvasRenderingContext2D) => {
+    ctx.fillStyle = '#0d1117'
+    ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE)
+
+    ctx.fillStyle = '#00ff41'
+    snake.current.forEach(({ x, y }) => ctx.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2))
+
+    if (food.current) {
+      ctx.fillStyle = '#ff4444'
+      ctx.fillRect(food.current.x * CELL + 2, food.current.y * CELL + 2, CELL - 4, CELL - 4)
+    }
+  }, [])
+
   useEffect(() => {
     const stopOnHide = () => {
       if (document.visibilityState === 'hidden') {
@@ -126,14 +158,6 @@ export default function SnakeGame({ onClose }: Props) {
       window.removeEventListener('pagehide', stopAllSfx)
     }
   }, [])
-
-  function randomFood(snakeBody: Pos[]): Pos {
-    let pos: Pos
-    do {
-      pos = { x: Math.floor(Math.random() * GRID), y: Math.floor(Math.random() * GRID) }
-    } while (snakeBody.some((s) => s.x === pos.x && s.y === pos.y))
-    return pos
-  }
 
   // ---------- leaderboard fetch ----------
 
@@ -155,22 +179,97 @@ export default function SnakeGame({ onClose }: Props) {
   // Fetch on mount
   useEffect(() => { fetchLeaderboard() }, [fetchLeaderboard])
 
+  const initializeVerifiedRun = useCallback((session: SnakeRunSession) => {
+    const startingSnake = createInitialSnake()
+    const rng = createSeededSnakeRng(session.seed)
+    const firstFood = nextSnakeFood(startingSnake, rng)
+
+    if (!firstFood) {
+      throw new Error('Unable to start a verified run')
+    }
+
+    snake.current = startingSnake
+    food.current = firstFood
+    foodRng.current = rng
+    dir.current = INITIAL_SNAKE_DIRECTION
+    nextDir.current = INITIAL_SNAKE_DIRECTION
+    lastTick.current = 0
+    tickCountRef.current = 0
+    turnEventsRef.current = []
+    finalScoreRef.current = 0
+
+    setRunSession(session)
+    setRunError(null)
+    setScore(0)
+    setGameOver(false)
+    setSubmitted(false)
+    setSubmitError(null)
+    setUsername('')
+    setShowLeaderboard(false)
+    setRunId((i) => i + 1)
+  }, [])
+
+  const requestVerifiedRun = useCallback(async () => {
+    snake.current = createInitialSnake()
+    food.current = null
+    foodRng.current = null
+    dir.current = INITIAL_SNAKE_DIRECTION
+    nextDir.current = INITIAL_SNAKE_DIRECTION
+    lastTick.current = 0
+    tickCountRef.current = 0
+    turnEventsRef.current = []
+    finalScoreRef.current = 0
+
+    setRunLoading(true)
+    setRunError(null)
+    setRunSession(null)
+    setScore(0)
+    setGameOver(false)
+    setSubmitted(false)
+    setSubmitError(null)
+    setUsername('')
+
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'start' }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Unable to start verified run')
+      }
+      initializeVerifiedRun(data as SnakeRunSession)
+    } catch (error) {
+      setRunError(error instanceof Error ? error.message : 'Unable to start verified run')
+    } finally {
+      setRunLoading(false)
+    }
+  }, [initializeVerifiedRun])
+
+  useEffect(() => {
+    void requestVerifiedRun()
+  }, [requestVerifiedRun])
+
   // ---------- qualification check ----------
 
-  function qualifiesForTop10(s: number): boolean {
+  const qualifiesForTop10 = useCallback((s: number): boolean => {
     if (s <= 0) return false
     if (!leaderboard) return false
     if (leaderboard.entries.length < 10) return true
     if (leaderboard.cutoffScore === null) return true
     return s > leaderboard.cutoffScore
-  }
+  }, [leaderboard])
 
   // ---------- submit ----------
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const trimmed = username.trim()
-    if (!trimmed) return
+    if (!trimmed || !runSession) {
+      setSubmitError('This run could not be verified. Start a new game and try again.')
+      return
+    }
 
     setSubmitting(true)
     setSubmitError(null)
@@ -178,7 +277,13 @@ export default function SnakeGame({ onClose }: Props) {
       const res = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: trimmed, score: finalScoreRef.current }),
+        body: JSON.stringify({
+          action: 'submit',
+          username: trimmed,
+          score: finalScoreRef.current,
+          runToken: runSession.runToken,
+          turns: turnEventsRef.current,
+        }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -197,32 +302,44 @@ export default function SnakeGame({ onClose }: Props) {
   // ---------- restart ----------
 
   function restart() {
-    snake.current = [{ x: 10, y: 10 }]
-    food.current = randomFood(snake.current)
-    dir.current = 'RIGHT'
-    nextDir.current = 'RIGHT'
-    lastTick.current = 0
-    finalScoreRef.current = 0
-    setScore(0)
-    setGameOver(false)
-    setSubmitted(false)
-    setSubmitError(null)
-    setUsername('')
-    setRunId((i) => i + 1)
+    void requestVerifiedRun()
   }
 
   // ---------- game loop ----------
 
   const queueDirection = useCallback((next: Dir) => {
-    if (next === 'UP' && dir.current !== 'DOWN') nextDir.current = 'UP'
-    if (next === 'DOWN' && dir.current !== 'UP') nextDir.current = 'DOWN'
-    if (next === 'LEFT' && dir.current !== 'RIGHT') nextDir.current = 'LEFT'
-    if (next === 'RIGHT' && dir.current !== 'LEFT') nextDir.current = 'RIGHT'
+    let candidate: Dir | null = null
+    if (next === 'UP' && dir.current !== 'DOWN') candidate = 'UP'
+    if (next === 'DOWN' && dir.current !== 'UP') candidate = 'DOWN'
+    if (next === 'LEFT' && dir.current !== 'RIGHT') candidate = 'LEFT'
+    if (next === 'RIGHT' && dir.current !== 'LEFT') candidate = 'RIGHT'
+    if (!candidate) return
+
+    nextDir.current = candidate
+
+    const scheduledTick = tickCountRef.current + 1
+    const events = turnEventsRef.current
+    const lastEvent = events[events.length - 1]
+
+    if (lastEvent?.tick === scheduledTick) {
+      if (candidate === dir.current) {
+        events.pop()
+      } else {
+        lastEvent.direction = candidate
+      }
+      return
+    }
+
+    if (candidate !== dir.current) {
+      events.push({ tick: scheduledTick, direction: candidate })
+    }
   }, [])
 
   useEffect(() => {
     const ctx = canvasRef.current?.getContext('2d')
     if (!ctx) return
+
+    drawBoard(ctx)
 
     const handleKey = (e: KeyboardEvent) => {
       // Don't intercept keys when leaderboard is open or submitting
@@ -234,6 +351,10 @@ export default function SnakeGame({ onClose }: Props) {
       if (e.code === 'Escape') {
         e.preventDefault()
         onClose()
+        return
+      }
+
+      if (runLoading || runError) {
         return
       }
 
@@ -273,7 +394,7 @@ export default function SnakeGame({ onClose }: Props) {
     }
 
     const handleMobileDirection = (event: Event) => {
-      if (showLeaderboard || gameOver) return
+      if (showLeaderboard || gameOver || runLoading || runError) return
       const { detail } = event as CustomEvent<MobileSnakeDirection>
       if (detail === 'up') queueDirection('UP')
       if (detail === 'down') queueDirection('DOWN')
@@ -284,11 +405,32 @@ export default function SnakeGame({ onClose }: Props) {
     window.addEventListener('keydown', handleKey)
     window.addEventListener('snake-mobile-direction', handleMobileDirection as EventListener)
 
+    if (runLoading || runError || !runSession) {
+      return () => {
+        window.removeEventListener('keydown', handleKey)
+        window.removeEventListener('snake-mobile-direction', handleMobileDirection as EventListener)
+      }
+    }
+
+    const finishRun = (finalScore: number) => {
+      finalScoreRef.current = finalScore
+      const isNewHs = finalScore > sessionHighScore
+      const isLbQualifier = qualifiesForTop10(finalScore)
+      if (isNewHs || isLbQualifier) {
+        playSfx(sfxHs.current)
+      } else {
+        playSfx(sfxLose.current)
+      }
+      setGameOver(true)
+      if (rafId.current) cancelAnimationFrame(rafId.current)
+    }
+
     const loop = (ts: number) => {
       rafId.current = requestAnimationFrame(loop)
-      if (ts - lastTick.current < TICK_MS) return
+      if (ts - lastTick.current < SNAKE_TICK_MS) return
       lastTick.current = ts
 
+      tickCountRef.current += 1
       dir.current = nextDir.current
       const head = snake.current[0]
       const newHead: Pos = {
@@ -296,63 +438,49 @@ export default function SnakeGame({ onClose }: Props) {
         y: head.y + (dir.current === 'DOWN'  ? 1 : dir.current === 'UP'   ? -1 : 0),
       }
 
-      const die = () => {
-        const finalScore = snake.current.length - 1
-        finalScoreRef.current = finalScore
-        const isNewHs = finalScore > sessionHighScore
-        const isLbQualifier = qualifiesForTop10(finalScore)
-        if (isNewHs || isLbQualifier) {
-          playSfx(sfxHs.current)
-        } else {
-          playSfx(sfxLose.current)
-        }
-        setGameOver(true)
-        if (rafId.current) cancelAnimationFrame(rafId.current)
-      }
-
       // Wall collision
       if (newHead.x < 0 || newHead.x >= GRID || newHead.y < 0 || newHead.y >= GRID) {
-        die()
+        finishRun(snake.current.length - 1)
         return
       }
       // Self collision
       if (snake.current.some((s) => s.x === newHead.x && s.y === newHead.y)) {
-        die()
+        finishRun(snake.current.length - 1)
         return
       }
 
-      const ateFood = newHead.x === food.current.x && newHead.y === food.current.y
+      const ateFood = food.current !== null && newHead.x === food.current.x && newHead.y === food.current.y
       const newSnake = [newHead, ...snake.current]
       if (!ateFood) newSnake.pop()
       else {
         playSfx(sfxEat.current)
-        food.current = randomFood(newSnake)
         const newScore = newSnake.length - 1
         setScore(newScore)
         if (newScore > sessionHighScore) {
           sessionHighScore = newScore
           setHighScore(newScore)
         }
+
+        if (newSnake.length >= GRID * GRID) {
+          snake.current = newSnake
+          food.current = null
+          finishRun(newScore)
+          drawBoard(ctx)
+          return
+        }
+
+        food.current = foodRng.current ? nextSnakeFood(newSnake, foodRng.current) : null
+        if (!food.current) {
+          snake.current = newSnake
+          finishRun(newScore)
+          drawBoard(ctx)
+          return
+        }
       }
       snake.current = newSnake
 
-      // Draw
-      ctx.fillStyle = '#0d1117'
-      ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE)
-
-      ctx.fillStyle = '#00ff41'
-      snake.current.forEach(({ x, y }) => ctx.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2))
-
-      ctx.fillStyle = '#ff4444'
-      ctx.fillRect(food.current.x * CELL + 2, food.current.y * CELL + 2, CELL - 4, CELL - 4)
+      drawBoard(ctx)
     }
-
-    ctx.fillStyle = '#0d1117'
-    ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE)
-    ctx.fillStyle = '#00ff41'
-    snake.current.forEach(({ x, y }) => ctx.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2))
-    ctx.fillStyle = '#ff4444'
-    ctx.fillRect(food.current.x * CELL + 2, food.current.y * CELL + 2, CELL - 4, CELL - 4)
 
     rafId.current = requestAnimationFrame(loop)
     return () => {
@@ -360,11 +488,12 @@ export default function SnakeGame({ onClose }: Props) {
       window.removeEventListener('snake-mobile-direction', handleMobileDirection as EventListener)
       if (rafId.current) cancelAnimationFrame(rafId.current)
     }
-  }, [gameOver, onClose, queueDirection, runId, showLeaderboard])
+  }, [drawBoard, gameOver, onClose, qualifiesForTop10, queueDirection, runError, runId, runLoading, runSession, showLeaderboard])
 
   // ---------- render helpers ----------
 
-  const qualifies = gameOver && qualifiesForTop10(score)
+  const canSubmitScore = Boolean(runSession) && !runLoading && !runError
+  const qualifies = gameOver && canSubmitScore && qualifiesForTop10(score)
 
   const topScoreDisplay = leaderboard?.topScore
     ? `${leaderboard.topScore.username} - ${leaderboard.topScore.score}`
@@ -433,6 +562,49 @@ export default function SnakeGame({ onClose }: Props) {
             height={CANVAS_SIZE}
             style={styles.canvas}
           />
+
+          {/* Verified run startup overlay */}
+          {!showLeaderboard && (runLoading || runError) && (
+            <div style={styles.gameOver}>
+              <p style={styles.gameOverText}>{runLoading ? 'VERIFYING RUN' : 'RUN UNAVAILABLE'}</p>
+              <p style={styles.lbMsg}>
+                {runLoading
+                  ? 'Starting a server-verified run...'
+                  : 'Leaderboard submissions stay locked until a verified run starts.'}
+              </p>
+              {runError && <p style={styles.errorText}>{runError}</p>}
+              <div
+                style={{
+                  ...styles.gameOverBtns,
+                  flexDirection: mobileButtonColumn ? 'column' : 'row',
+                  width: mobileButtonColumn ? '100%' : undefined,
+                }}
+              >
+                <button
+                  style={{
+                    ...styles.restartBtn,
+                    width: mobileButtonColumn ? '100%' : undefined,
+                    maxWidth: mobileButtonColumn ? '13rem' : undefined,
+                    opacity: runLoading ? 0.5 : 1,
+                  }}
+                  onClick={restart}
+                  disabled={runLoading}
+                >
+                  {runLoading ? 'Starting...' : 'Retry'}
+                </button>
+                <button
+                  style={{
+                    ...styles.viewLbBtnAlt,
+                    width: mobileButtonColumn ? '100%' : undefined,
+                    maxWidth: mobileButtonColumn ? '13rem' : undefined,
+                  }}
+                  onClick={() => { stopAllSfx(); setShowLeaderboard(true) }}
+                >
+                  View Leaderboard
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Game over overlay */}
           {gameOver && !showLeaderboard && (
