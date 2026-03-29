@@ -92,7 +92,6 @@ export default function SnakeGame({ onClose }: Props) {
   const [runLoading, setRunLoading] = useState(true)
   const [runError, setRunError] = useState<string | null>(null)
   const [showRunLoadingFallback, setShowRunLoadingFallback] = useState(false)
-  const [showAdminEntry, setShowAdminEntry] = useState(false)
 
   const snake = useRef<Pos[]>(createInitialSnake())
   const food = useRef<Pos | null>(null)
@@ -226,7 +225,6 @@ export default function SnakeGame({ onClose }: Props) {
     setSubmitError(null)
     setUsername('')
     setShowLeaderboard(false)
-    setShowAdminEntry(false)
     setRunId((i) => i + 1)
   }, [])
 
@@ -249,7 +247,6 @@ export default function SnakeGame({ onClose }: Props) {
     setSubmitted(false)
     setSubmitError(null)
     setUsername('')
-    setShowAdminEntry(false)
 
     try {
       const session = await takeSnakeRunSession(forceFresh)
@@ -315,7 +312,6 @@ export default function SnakeGame({ onClose }: Props) {
         return
       }
       setSubmitted(true)
-      setShowAdminEntry(false)
       await fetchLeaderboard()
     } catch {
       setSubmitError('Unable to submit score')
@@ -519,7 +515,6 @@ export default function SnakeGame({ onClose }: Props) {
 
   const canSubmitScore = Boolean(runSession) && !runLoading && !runError
   const qualifies = gameOver && canSubmitScore && qualifiesForTop10(score)
-  const canShowSubmitForm = canSubmitScore && (qualifies || showAdminEntry)
 
   const topScoreDisplay = leaderboard?.topScore
     ? `${leaderboard.topScore.username} - ${leaderboard.topScore.score}`
@@ -639,13 +634,9 @@ export default function SnakeGame({ onClose }: Props) {
               <p style={styles.gameOverScore}>Score: {score}</p>
 
               {/* Qualification form */}
-              {canShowSubmitForm && !submitted && (
+              {qualifies && !submitted && (
                 <div style={styles.submitSection}>
-                  <p style={styles.qualifyText}>
-                    {qualifies
-                      ? 'Top 10 score! Enter a username to submit:'
-                      : 'Enter a username or your code:'}
-                  </p>
+                  <p style={styles.qualifyText}>Top 10 score! Enter a username to submit:</p>
                   <form
                     onSubmit={handleSubmit}
                     style={{
@@ -658,9 +649,9 @@ export default function SnakeGame({ onClose }: Props) {
                       type="text"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
-                      placeholder={qualifies ? 'Username' : 'Username or code'}
+                      placeholder="Username"
                       maxLength={16}
-                      minLength={1}
+                      minLength={3}
                       autoFocus
                       style={{
                         ...styles.usernameInput,
@@ -673,24 +664,15 @@ export default function SnakeGame({ onClose }: Props) {
                       type="submit"
                       style={{
                         ...styles.submitBtn,
-                        opacity: submitting || username.trim().length < 1 ? 0.5 : 1,
+                        opacity: submitting || username.trim().length < 3 ? 0.5 : 1,
                       }}
-                      disabled={submitting || username.trim().length < 1}
+                      disabled={submitting || username.trim().length < 3}
                     >
                       {submitting ? 'Submitting...' : 'Submit'}
                     </button>
                   </form>
                   {submitError && <p style={styles.errorText}>{submitError}</p>}
                 </div>
-              )}
-
-              {!qualifies && !showAdminEntry && !submitted && canSubmitScore && (
-                <button
-                  style={styles.viewLbBtnAlt}
-                  onClick={() => setShowAdminEntry(true)}
-                >
-                  Have a code?
-                </button>
               )}
 
               {/* Post-submit confirmation */}
@@ -964,16 +946,16 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '0.6rem',
+    gap: '0.72rem',
     background: 'rgba(13, 17, 23, 0.95)',
-    padding: '1rem',
+    padding: '1.2rem',
     overflowY: 'auto',
   },
   lbTitle: {
     margin: 0,
     color: '#ffd700',
     fontFamily: "'Press Start 2P', monospace",
-    fontSize: '1.1rem',
+    fontSize: '1.32rem',
     textAlign: 'center',
     textShadow: '0 0 8px rgba(255, 215, 0, 0.3)',
   },
@@ -981,20 +963,20 @@ const styles: Record<string, React.CSSProperties> = {
     margin: 0,
     color: '#4a8a4a',
     fontFamily: "'Press Start 2P', monospace",
-    fontSize: '0.5rem',
+    fontSize: '0.6rem',
   },
   lbList: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '0.3rem',
+    gap: '0.36rem',
     width: '100%',
-    maxWidth: '18rem',
+    maxWidth: '21.6rem',
   },
   lbRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: '0.5rem',
-    padding: '0.3rem 0.5rem',
+    gap: '0.6rem',
+    padding: '0.36rem 0.6rem',
     borderBottom: '1px solid rgba(0,255,65,0.1)',
   },
   lbRowFirst: {
@@ -1004,15 +986,15 @@ const styles: Record<string, React.CSSProperties> = {
   lbRank: {
     color: '#4a8a4a',
     fontFamily: "'Press Start 2P', monospace",
-    fontSize: '0.5rem',
-    width: '2rem',
+    fontSize: '0.6rem',
+    width: '2.4rem',
     textAlign: 'center',
     flexShrink: 0,
   },
   lbName: {
     color: '#00ff41',
     fontFamily: "'Press Start 2P', monospace",
-    fontSize: '0.5rem',
+    fontSize: '0.6rem',
     flex: 1,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
@@ -1021,18 +1003,18 @@ const styles: Record<string, React.CSSProperties> = {
   lbScore: {
     color: '#ffd700',
     fontFamily: "'Press Start 2P', monospace",
-    fontSize: '0.55rem',
+    fontSize: '0.66rem',
     flexShrink: 0,
   },
   lbCloseBtn: {
     background: '#00ff41',
     color: '#0d1117',
     border: 'none',
-    padding: '0.5rem 1rem',
+    padding: '0.6rem 1.2rem',
     fontFamily: "'Press Start 2P', monospace",
-    fontSize: '0.55rem',
+    fontSize: '0.66rem',
     cursor: 'pointer',
-    marginTop: '0.3rem',
+    marginTop: '0.36rem',
   },
   hint: {
     color: '#4a8a4a',
