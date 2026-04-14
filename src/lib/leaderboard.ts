@@ -17,9 +17,17 @@
  *   minesweeper — lower score is better    (seconds, stored as positive int)
  */
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+import {
+  canonicalizeIdentity,
+  isBetterScore,
+  SORT_ORDER,
+  type LeaderboardGame,
+  validateLeaderboardName,
+} from './leaderboardIdentity'
 
-export type LeaderboardGame = 'snake' | 'tictactoe' | 'minesweeper'
+export type { LeaderboardGame } from './leaderboardIdentity'
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface LeaderboardEntry {
   /** Stable unique id — used for React keys and deduplication. */
@@ -53,6 +61,8 @@ export interface RemoteSnakeLeaderboardEntry {
   rank: number
   username: string
   score: number
+  metadata?: string | null
+  timestamp?: string
 }
 
 export interface RemoteSnakeLeaderboardData {
@@ -60,6 +70,9 @@ export interface RemoteSnakeLeaderboardData {
   entries: RemoteSnakeLeaderboardEntry[]
   cutoffScore: number | null
 }
+
+export type RemoteLeaderboardEntry = RemoteSnakeLeaderboardEntry
+export type RemoteLeaderboardData = RemoteSnakeLeaderboardData
 
 // ── Storage keys ──────────────────────────────────────────────────────────────
 
@@ -69,50 +82,7 @@ const TOP_N          = 10
 
 // ── Sort direction per game ───────────────────────────────────────────────────
 
-const SORT_ORDER: Record<LeaderboardGame, SortOrder> = {
-  snake:       'desc',
-  tictactoe:   'desc',
-  minesweeper: 'asc',
-}
-
-const USERNAME_RE = /^[A-Za-z0-9_-]{3,16}$/
-
-const RESERVED = new Set([
-  'admin', 'administrator', 'moderator', 'mod', 'system', 'root',
-  'null', 'undefined', 'vercel', 'zain',
-])
-
-const PROFANITY = [
-  'fuck', 'shit', 'ass', 'damn', 'bitch', 'dick', 'cock', 'pussy',
-  'cunt', 'bastard', 'slut', 'whore', 'fag', 'nigger', 'nigga',
-  'retard', 'rape', 'penis', 'vagina', 'anus', 'porn', 'cum',
-  'nazi', 'hitler', 'kill', 'die',
-  'kosom', 'kossom', 'kosomak', 'kosomk', 'kosomik',
-  'khawal', 'khwl', '5awal', '5wl',
-  'metnak', 'metnaka', 'mtnak', 'mtnaka',
-  'bez', 'bezaz', 'bzaz',
-]
-
-const OVERRIDE_CODES: Record<string, { display: string; normalized: string }> = {
-  '71594250': { display: 'zain', normalized: 'zain' },
-  '48273196': { display: 'joyce', normalized: 'joyce' },
-}
-
-const CANONICAL_NAME_BY_NORMALIZED: Record<string, string> = {
-  zain: 'zain',
-  joyce: 'joyce',
-  joyceyay: 'joyce',
-  'w-joyce': 'joyce',
-  joyceagain: 'joyce',
-  joycelol: 'joyce',
-  joycead: 'joyce',
-  joyc: 'joyce',
-}
-
-const CANONICAL_DISPLAY_BY_NAME: Record<string, string> = {
-  zain: 'zain',
-  joyce: 'joyce',
-}
+const SORT_ORDER_LOCAL: Record<LeaderboardGame, SortOrder> = SORT_ORDER
 
 // ── Storage helpers ───────────────────────────────────────────────────────────
 
@@ -136,20 +106,6 @@ function writeEntries(entries: LeaderboardEntry[]): void {
   }
 }
 
-function canonicalizeIdentity(raw: string): { display: string; normalized: string } {
-  const trimmed = raw.trim()
-  const override = OVERRIDE_CODES[trimmed]
-  if (override) return override
-
-  const normalizedInput = trimmed.toLowerCase()
-  const canonical = CANONICAL_NAME_BY_NORMALIZED[normalizedInput] ?? normalizedInput
-
-  return {
-    display: CANONICAL_DISPLAY_BY_NAME[canonical] ?? trimmed,
-    normalized: canonical,
-  }
-}
-
 // ── Sorting ───────────────────────────────────────────────────────────────────
 
 /**
@@ -157,7 +113,7 @@ function canonicalizeIdentity(raw: string): { display: string; normalized: strin
  * Ties are broken by timestamp (earlier = better — first to achieve it).
  */
 function sortForGame(entries: LeaderboardEntry[], game: LeaderboardGame): LeaderboardEntry[] {
-  const order = SORT_ORDER[game]
+  const order = SORT_ORDER_LOCAL[game]
   return [...entries].sort((a, b) => {
     if (order === 'desc') {
       if (b.score !== a.score) return b.score - a.score
@@ -167,10 +123,6 @@ function sortForGame(entries: LeaderboardEntry[], game: LeaderboardGame): Leader
     // Stable: earlier timestamp wins ties
     return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   })
-}
-
-function isBetterScore(game: LeaderboardGame, candidate: number, current: number): boolean {
-  return SORT_ORDER[game] === 'desc' ? candidate > current : candidate < current
 }
 
 function isBetterEntry(game: LeaderboardGame, candidate: LeaderboardEntry, current: LeaderboardEntry): boolean {
@@ -318,22 +270,8 @@ export function setPlayerName(raw: string): { ok: true; name: string } | { ok: f
 export function validatePlayerName(
   raw: string,
 ): { ok: true; name: string } | { ok: false; error: string } {
-  const name = raw.trim()
-  if (!name) return { ok: false, error: 'Name cannot be empty' }
-  const override = OVERRIDE_CODES[name]
-  if (override) {
-    return { ok: true, name: override.display }
-  }
-  if (!USERNAME_RE.test(name)) {
-    return {
-      ok: false,
-      error: 'Name must be 3-16 characters. Letters, numbers, _ and - allowed.',
-    }
-  }
-  const identity = canonicalizeIdentity(name)
-  if (RESERVED.has(identity.normalized)) return { ok: false, error: 'That name is not allowed' }
-  if (PROFANITY.some(w => identity.normalized.includes(w))) return { ok: false, error: 'That name is not allowed' }
-  return { ok: true, name: identity.display }
+  const result = validateLeaderboardName(raw)
+  return result.ok ? { ok: true, name: result.name } : result
 }
 
 export function normalizeSnakeLeaderboard(data: RemoteSnakeLeaderboardData): RemoteSnakeLeaderboardData {
@@ -359,6 +297,8 @@ export function normalizeSnakeLeaderboard(data: RemoteSnakeLeaderboardData): Rem
       rank: index + 1,
       username: entry.username,
       score: entry.score,
+      metadata: entry.metadata ?? null,
+      timestamp: entry.timestamp,
     }))
 
   return {
@@ -366,6 +306,45 @@ export function normalizeSnakeLeaderboard(data: RemoteSnakeLeaderboardData): Rem
     entries,
     cutoffScore: entries.length >= 10 ? entries[9].score : null,
   }
+}
+
+export function getRemoteLeaderboardPath(game: LeaderboardGame): string {
+  if (game === 'snake') return '/api/snake-leaderboard'
+  if (game === 'tictactoe') return '/api/tictactoe-leaderboard'
+  return '/api/minesweeper-leaderboard'
+}
+
+export async function fetchRemoteLeaderboard(game: LeaderboardGame): Promise<RemoteLeaderboardData> {
+  const res = await fetch(getRemoteLeaderboardPath(game))
+  const text = await res.text()
+  const data = text ? JSON.parse(text) as RemoteLeaderboardData | { error?: string } : { topScore: null, entries: [], cutoffScore: null }
+  if (!res.ok) {
+    throw new Error(('error' in data && data.error) || 'Unable to load leaderboard')
+  }
+  return game === 'snake'
+    ? normalizeSnakeLeaderboard(data as RemoteLeaderboardData)
+    : data as RemoteLeaderboardData
+}
+
+export async function submitRemoteLeaderboardEntry(
+  game: Exclude<LeaderboardGame, 'snake'>,
+  username: string,
+  score: number,
+  metadata: string | null,
+): Promise<{ keptExisting: boolean }> {
+  const res = await fetch(getRemoteLeaderboardPath(game), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, score, metadata }),
+  })
+
+  const text = await res.text()
+  const data = text ? JSON.parse(text) as { error?: string; keptExisting?: boolean } : {}
+  if (!res.ok) {
+    throw new Error(data.error || 'Unable to submit score')
+  }
+
+  return { keptExisting: Boolean(data.keptExisting) }
 }
 
 // ── Score display ─────────────────────────────────────────────────────────────

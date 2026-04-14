@@ -2,6 +2,13 @@ import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'crypto'
 
 import { neon } from '@neondatabase/serverless'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import {
+  canonicalizeIdentity,
+  isProfane,
+  RESERVED_USERNAMES,
+  USERNAME_RE,
+  validateLeaderboardName,
+} from '../src/lib/leaderboardIdentity'
 
 type SqlClient = ReturnType<typeof getDb>
 
@@ -13,6 +20,7 @@ const SNAKE_RUN_TTL_MS = 2 * 60 * 60 * 1000
 const SNAKE_MAX_TICKS_PER_RUN = Math.floor(SNAKE_RUN_TTL_MS / SNAKE_TICK_MS)
 const SNAKE_MIN_ELAPSED_SLACK_MS = 1500
 const SNAKE_ADMIN_USERNAME = 'zain'
+const JOYCE_ALIAS_NORMALIZED = ['joyc', 'joycead', 'joycelol', 'joyceagain', 'w-joyce', 'joyceyay'] as const
 
 type SnakeDirection = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT'
 
@@ -267,37 +275,6 @@ function simulateSnakeReplay(seed: number, turns: SnakeTurnEvent[]) {
 
 // ---------- username validation ----------
 
-const USERNAME_RE = /^[A-Za-z0-9_-]{3,16}$/
-
-const RESERVED_NAMES = new Set([
-  'admin',
-  'administrator',
-  'moderator',
-  'mod',
-  'vercel',
-  'zain',
-  'system',
-  'root',
-  'null',
-  'undefined',
-])
-
-const PROFANITY: string[] = [
-  'fuck', 'shit', 'ass', 'damn', 'bitch', 'dick', 'cock', 'pussy',
-  'cunt', 'bastard', 'slut', 'whore', 'fag', 'nigger', 'nigga',
-  'retard', 'rape', 'penis', 'vagina', 'anus', 'porn', 'cum',
-  'nazi', 'hitler', 'kill', 'die',
-  'kosom', 'kossom', 'kosomak', 'kosomk', 'kosomik',
-  'khawal', 'khwl', '5awal', '5wl',
-  'metnak', 'metnaka', 'mtnak', 'mtnaka',
-  'bez', 'bezaz', 'bzaz',
-]
-
-function isProfane(name: string): boolean {
-  const lower = name.toLowerCase()
-  return PROFANITY.some((word) => lower.includes(word))
-}
-
 function isAdminCode(raw: unknown): raw is string {
   if (typeof raw !== 'string' || raw.trim() === '') return false
   const adminCode = process.env.SNAKE_ADMIN_CODE?.trim()
@@ -309,24 +286,62 @@ function validateUsername(raw: unknown): { ok: true; display: string; normalized
   if (typeof raw !== 'string' || raw.trim() === '') {
     return { ok: false, error: 'Username is required', status: 400 }
   }
-  const display = raw.trim()
-  if (!USERNAME_RE.test(display)) {
+  const direct = raw.trim()
+  const validated = validateLeaderboardName(direct)
+  if (validated.ok) {
+    return { ok: true, display: validated.name, normalized: validated.normalized }
+  }
+  if (!USERNAME_RE.test(direct)) {
     return { ok: false, error: 'Username contains unsupported characters (allowed: A-Z, a-z, 0-9, _, -) and must be 3-16 characters', status: 400 }
   }
-  const normalized = display.toLowerCase()
-  if (RESERVED_NAMES.has(normalized)) {
+  const identity = canonicalizeIdentity(direct)
+  if (RESERVED_USERNAMES.has(identity.normalized)) {
     return { ok: false, error: 'Username is not allowed', status: 400 }
   }
-  if (isProfane(normalized)) {
+  if (isProfane(identity.normalized)) {
     return { ok: false, error: 'Username is not allowed', status: 400 }
   }
-  return { ok: true, display, normalized }
+  return { ok: true, display: identity.display, normalized: identity.normalized }
+}
+
+async function cleanupCanonicalSnakeEntries(sql: SqlClient) {
+  const aliases = [...JOYCE_ALIAS_NORMALIZED]
+  const rows = await sql`
+    SELECT username, username_normalized, score, created_at
+    FROM snake_leaderboard_entries
+    WHERE username_normalized = 'joyce'
+      OR username_normalized = ANY(${aliases})
+    ORDER BY score DESC, created_at ASC
+  `
+
+  if (rows.length === 0) return
+
+  const best = rows[0]
+  const bestScore = best.score as number
+
+  await sql`
+    INSERT INTO snake_leaderboard_entries (username, username_normalized, score)
+    VALUES ('joyce', 'joyce', ${bestScore})
+    ON CONFLICT (username_normalized)
+    DO UPDATE SET
+      username = 'joyce',
+      score = CASE
+        WHEN EXCLUDED.score > snake_leaderboard_entries.score THEN EXCLUDED.score
+        ELSE snake_leaderboard_entries.score
+      END
+  `
+
+  await sql`
+    DELETE FROM snake_leaderboard_entries
+    WHERE username_normalized = ANY(${aliases})
+  `
 }
 
 // ---------- handlers ----------
 
 async function handleGet(res: VercelResponse) {
   const sql = getDb()
+  await cleanupCanonicalSnakeEntries(sql)
   const rows = await sql`
     SELECT username, score
     FROM snake_leaderboard_entries
@@ -351,6 +366,7 @@ async function handleStart(res: VercelResponse) {
   const sql = getDb()
   await ensureRunSessionsTable(sql)
   await pruneExpiredRunSessions(sql)
+  await cleanupCanonicalSnakeEntries(sql)
 
   const issuedAt = Date.now()
   const expiresAt = issuedAt + SNAKE_RUN_TTL_MS
@@ -415,6 +431,7 @@ async function handleSubmit(body: SnakeRunSubmitRequest, res: VercelResponse) {
   const sql = getDb()
   await ensureRunSessionsTable(sql)
   await pruneExpiredRunSessions(sql)
+  await cleanupCanonicalSnakeEntries(sql)
 
   const sessionRows = await sql`
     SELECT nonce, seed, issued_at, expires_at, consumed_at

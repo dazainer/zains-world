@@ -28,10 +28,11 @@ import {
 } from '../lib/tictactoe'
 
 import {
-  qualifies as qualifiesLocal,
-  addEntry,
+  fetchRemoteLeaderboard,
   getPlayerName,
   setPlayerName,
+  submitRemoteLeaderboardEntry,
+  type RemoteLeaderboardData,
 } from '../lib/leaderboard'
 
 // ── Props ────────────────────────────────────────────────────────────────────
@@ -100,6 +101,7 @@ export default function TicTacToe({ onClose, onViewLeaderboard }: Props) {
   const [lbNameInput, setLbNameInput]       = useState('')
   const [lbNameError, setLbNameError]       = useState<string | null>(null)
   const [lbSaved, setLbSaved]               = useState(false)
+  const [remoteLeaderboard, setRemoteLeaderboard] = useState<RemoteLeaderboardData | null>(null)
 
   // SFX refs (created once)
   const sfxMove = useRef<HTMLAudioElement | null>(null)
@@ -111,6 +113,30 @@ export default function TicTacToe({ onClose, onViewLeaderboard }: Props) {
     sfxMove.current = makeAudio('/assets/sfx/interact_default.wav', 0.12)
     sfxWin.current  = makeAudio('/assets/sfx/snake_hs.wav', 0.35)
     sfxLose.current = makeAudio('/assets/sfx/snake_lose.wav', 0.24)
+  }, [])
+
+  useEffect(() => {
+    void fetchRemoteLeaderboard('tictactoe')
+      .then(setRemoteLeaderboard)
+      .catch(() => {})
+  }, [])
+
+  const qualifiesForGlobal = useCallback((score: number, playerName?: string) => {
+    if (score <= 0 || !remoteLeaderboard) return true
+    if (playerName) {
+      const existing = remoteLeaderboard.entries.find((entry) => entry.username.toLowerCase() === playerName.toLowerCase())
+      if (existing) return score > existing.score
+    }
+    if (remoteLeaderboard.entries.length < 10 || remoteLeaderboard.cutoffScore === null) return true
+    return score > remoteLeaderboard.cutoffScore
+  }, [remoteLeaderboard])
+
+  const saveGlobalScore = useCallback(async (playerName: string, score: number, diff: Difficulty) => {
+    const result = await submitRemoteLeaderboardEntry('tictactoe', playerName, score, diff)
+    if (!result.keptExisting) {
+      setLbSaved(true)
+      setRemoteLeaderboard(await fetchRemoteLeaderboard('tictactoe'))
+    }
   }, [])
 
   // ── Game state helpers ────────────────────────────────────────────────────
@@ -164,13 +190,12 @@ export default function TicTacToe({ onClose, onViewLeaderboard }: Props) {
       const streak = newStats.currentWinStreak
       const stored = getPlayerName()
       if (stored) {
-        if (qualifiesLocal('tictactoe', streak, stored)) {
-          const saved = addEntry('tictactoe', stored, streak, diff)
-          if (saved.status !== 'kept-existing') {
-            setLbSaved(true)
-          }
+        if (qualifiesForGlobal(streak, stored)) {
+          void saveGlobalScore(stored, streak, diff).catch((error) => {
+            setLbNameError(error instanceof Error ? error.message : 'Unable to save score')
+          })
         }
-      } else if (qualifiesLocal('tictactoe', streak)) {
+      } else if (qualifiesForGlobal(streak)) {
           setLbPendingScore(streak)
           setLbPending(true)
       }
@@ -317,17 +342,18 @@ export default function TicTacToe({ onClose, onViewLeaderboard }: Props) {
 
   // ── Local leaderboard save ────────────────────────────────────────────────
 
-  function handleLbSave() {
+  async function handleLbSave() {
     const validation = setPlayerName(lbNameInput)
     if (!validation.ok) {
       setLbNameError(validation.error)
       return
     }
-    const saved = addEntry('tictactoe', validation.name, lbPendingScore, difficulty)
-    if (saved.status !== 'kept-existing') {
-      setLbSaved(true)
+    try {
+      await saveGlobalScore(validation.name, lbPendingScore, difficulty)
+      setLbPending(false)
+    } catch (error) {
+      setLbNameError(error instanceof Error ? error.message : 'Unable to save score')
     }
-    setLbPending(false)
   }
 
   // ── Render helpers ────────────────────────────────────────────────────────

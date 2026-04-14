@@ -34,10 +34,11 @@ import {
 } from '../lib/minesweeper'
 
 import {
-  qualifies as qualifiesLocal,
-  addEntry,
+  fetchRemoteLeaderboard,
   getPlayerName,
   setPlayerName,
+  submitRemoteLeaderboardEntry,
+  type RemoteLeaderboardData,
 } from '../lib/leaderboard'
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -99,6 +100,7 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
   const [lbNameInput, setLbNameInput] = useState('')
   const [lbNameError, setLbNameError] = useState<string | null>(null)
   const [lbSaved, setLbSaved]         = useState(false)
+  const [remoteLeaderboard, setRemoteLeaderboard] = useState<RemoteLeaderboardData | null>(null)
 
   // ── Refs ──────────────────────────────────────────────────────────────────
   const sfxReveal = useRef<HTMLAudioElement | null>(null)
@@ -115,6 +117,30 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
       sfxReveal.current = null
       sfxWin.current    = null
       sfxLose.current   = null
+    }
+  }, [])
+
+  useEffect(() => {
+    void fetchRemoteLeaderboard('minesweeper')
+      .then(setRemoteLeaderboard)
+      .catch(() => {})
+  }, [])
+
+  const qualifiesForGlobal = useCallback((score: number, playerName?: string) => {
+    if (score <= 0 || !remoteLeaderboard) return true
+    if (playerName) {
+      const existing = remoteLeaderboard.entries.find((entry) => entry.username.toLowerCase() === playerName.toLowerCase())
+      if (existing) return score < existing.score
+    }
+    if (remoteLeaderboard.entries.length < 10 || remoteLeaderboard.cutoffScore === null) return true
+    return score < remoteLeaderboard.cutoffScore
+  }, [remoteLeaderboard])
+
+  const saveGlobalScore = useCallback(async (playerName: string, score: number, metadata: string) => {
+    const result = await submitRemoteLeaderboardEntry('minesweeper', playerName, score, metadata)
+    if (!result.keptExisting) {
+      setLbSaved(true)
+      setRemoteLeaderboard(await fetchRemoteLeaderboard('minesweeper'))
     }
   }, [])
 
@@ -204,13 +230,12 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
       // Local leaderboard
       const stored = getPlayerName()
       if (stored) {
-        if (qualifiesLocal('minesweeper', elapsed, stored)) {
-          const saved = addEntry('minesweeper', stored, elapsed, `${DIFFICULTY_LABELS[difficulty]} · ${formatTime(elapsed)}`)
-          if (saved.status !== 'kept-existing') {
-            setLbSaved(true)
-          }
+        if (qualifiesForGlobal(elapsed, stored)) {
+          void saveGlobalScore(stored, elapsed, `${DIFFICULTY_LABELS[difficulty]} · ${formatTime(elapsed)}`).catch((error) => {
+            setLbNameError(error instanceof Error ? error.message : 'Unable to save score')
+          })
         }
-      } else if (qualifiesLocal('minesweeper', elapsed)) {
+      } else if (qualifiesForGlobal(elapsed)) {
           setLbPending(true)
       }
     }
@@ -238,17 +263,18 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
 
   // ── Local leaderboard save ────────────────────────────────────────────────
 
-  function handleLbSave() {
+  async function handleLbSave() {
     const validation = setPlayerName(lbNameInput)
     if (!validation.ok) {
       setLbNameError(validation.error)
       return
     }
-    const saved = addEntry('minesweeper', validation.name, elapsed, `${DIFFICULTY_LABELS[difficulty]} · ${formatTime(elapsed)}`)
-    if (saved.status !== 'kept-existing') {
-      setLbSaved(true)
+    try {
+      await saveGlobalScore(validation.name, elapsed, `${DIFFICULTY_LABELS[difficulty]} · ${formatTime(elapsed)}`)
+      setLbPending(false)
+    } catch (error) {
+      setLbNameError(error instanceof Error ? error.message : 'Unable to save score')
     }
-    setLbPending(false)
   }
 
   // ── Derived ───────────────────────────────────────────────────────────────
