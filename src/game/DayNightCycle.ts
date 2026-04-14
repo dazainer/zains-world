@@ -7,6 +7,7 @@ interface OverlayPhase {
 
 const DEFAULT_CYCLE_DURATION_MS = Math.round((10 * 60 * 1000) / 6)
 const SPEED_MULTIPLIERS = [1, 10, 30, 120] as const
+const ENABLED_STORAGE_KEY = 'dayNightCycleEnabled'
 
 const PHASES: OverlayPhase[] = [
   { r: 255, g: 200, b: 100, a: 0.05 }, // dawn
@@ -23,14 +24,20 @@ export class DayNightCycle {
   private readonly cycleDurationMs: number
   private readonly startTimeMs: number
   private speedIndex = 0
+  private enabled = true
 
   constructor(cycleDurationMs = DEFAULT_CYCLE_DURATION_MS) {
     this.cycleDurationMs = cycleDurationMs
     const randomOffsetMs = Math.random() * cycleDurationMs
     this.startTimeMs = performance.now() - randomOffsetMs
+    this.enabled = this.readStoredEnabled()
   }
 
   getOverlayColor(nowMs = performance.now()): string {
+    if (!this.enabled) {
+      return 'rgba(0, 0, 0, 0)'
+    }
+
     const elapsedMs = Math.max(0, nowMs - this.startTimeMs) * this.getSpeedMultiplier()
     const normalizedCycle = (elapsedMs % this.cycleDurationMs) / this.cycleDurationMs
     const segmentFloat = normalizedCycle * PHASES.length
@@ -62,5 +69,36 @@ export class DayNightCycle {
 
   getSpeedLabel(): string {
     return `DAY/NIGHT x${this.getSpeedMultiplier()}`
+  }
+
+  isEnabled(): boolean {
+    return this.enabled
+  }
+
+  setEnabled(enabled: boolean): boolean {
+    this.enabled = enabled
+    this.writeStoredEnabled(enabled)
+    return this.enabled
+  }
+
+  toggleEnabled(): boolean {
+    return this.setEnabled(!this.enabled)
+  }
+
+  private readStoredEnabled(): boolean {
+    try {
+      const stored = localStorage.getItem(ENABLED_STORAGE_KEY)
+      return stored !== '0'
+    } catch {
+      return true
+    }
+  }
+
+  private writeStoredEnabled(enabled: boolean): void {
+    try {
+      localStorage.setItem(ENABLED_STORAGE_KEY, enabled ? '1' : '0')
+    } catch {
+      // ignore storage failures
+    }
   }
 }

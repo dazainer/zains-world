@@ -410,6 +410,18 @@ export class GameEngine {
     return this.currentRoom.id
   }
 
+  isDayNightCycleEnabled(): boolean {
+    return this.dayNightCycle.isEnabled()
+  }
+
+  setDayNightCycleEnabled(enabled: boolean): boolean {
+    return this.dayNightCycle.setEnabled(enabled)
+  }
+
+  toggleDayNightCycle(): boolean {
+    return this.dayNightCycle.toggleEnabled()
+  }
+
   /** True only while the player is actively walking in normal gameplay. */
   isPlayerWalking(): boolean {
     return this.transition.phase === 'none' && !this.uiPaused && this.player.isMoving

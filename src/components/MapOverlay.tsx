@@ -157,6 +157,7 @@ export default function MapOverlay({ engineRef, onClose }: Props) {
   const [playerPos, setPlayerPos] = useState<{ x: number; y: number } | null>(null)
   const [markerBright, setMarkerBright] = useState(true)
   const [tilesReady, setTilesReady] = useState(false)
+  const [dayNightEnabled, setDayNightEnabled] = useState(true)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const structureLookup = useMemo(
     () => new Map([...overworldStructures, ...overworldProps, ...overworldNpcDefs].map((entry) => [entry.id, entry])),
@@ -167,6 +168,7 @@ export default function MapOverlay({ engineRef, onClose }: Props) {
     const update = () => {
       const engine = engineRef.current
       if (!engine) return
+      setDayNightEnabled(engine.isDayNightCycleEnabled())
       const pos = engine.getPlayerPosition()
       const roomId = engine.getCurrentRoomId()
       if (roomId === 'overworld') {
@@ -280,6 +282,12 @@ export default function MapOverlay({ engineRef, onClose }: Props) {
   const sx = (x: number) => x * scale
   const sy = (y: number) => y * scale
 
+  const toggleDayNight = () => {
+    const engine = engineRef.current
+    if (!engine) return
+    setDayNightEnabled(engine.toggleDayNightCycle())
+  }
+
   const footprintLabels = useMemo(
     () =>
       FOOTPRINT_LABELS.flatMap((entry) => {
@@ -391,6 +399,19 @@ export default function MapOverlay({ engineRef, onClose }: Props) {
         <div style={styles.legendRow}>
           <span style={styles.legendChip}>Water canal border</span>
           <span style={styles.legendChip}>Golden face marker = you</span>
+        </div>
+
+        <div style={styles.controlRow}>
+          <button
+            type="button"
+            style={{
+              ...styles.toggleButton,
+              ...(dayNightEnabled ? styles.toggleButtonOn : styles.toggleButtonOff),
+            }}
+            onClick={toggleDayNight}
+          >
+            {dayNightEnabled ? 'DAY/NIGHT ON' : 'DAY/NIGHT OFF'}
+          </button>
         </div>
 
         <div style={styles.hint}>Press M or Esc to close</div>
@@ -541,6 +562,29 @@ const styles: Record<string, CSSProperties> = {
     border: '1px solid rgba(209, 170, 85, 0.35)',
     borderRadius: 999,
     padding: '6px 8px',
+  },
+  controlRow: {
+    display: 'flex',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  toggleButton: {
+    fontFamily: "'Press Start 2P', monospace",
+    fontSize: '0.36rem',
+    borderRadius: 999,
+    padding: '8px 12px',
+    border: '1px solid rgba(209, 170, 85, 0.55)',
+    cursor: 'pointer',
+    transition: 'transform 120ms ease, background 120ms ease, color 120ms ease',
+    boxShadow: '0 6px 16px rgba(0, 0, 0, 0.26)',
+  },
+  toggleButtonOn: {
+    background: 'rgba(74, 50, 20, 0.92)',
+    color: '#f2ddab',
+  },
+  toggleButtonOff: {
+    background: 'rgba(45, 27, 18, 0.92)',
+    color: '#c6b38c',
   },
   hint: {
     fontFamily: "'Press Start 2P', monospace",
