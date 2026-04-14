@@ -3,6 +3,22 @@
 ## Overview
 Add two new mini-games (Tic-Tac-Toe, Minesweeper) to the portfolio game, a global leaderboard, ambient creature interactions, and a day/night cycle to make the world feel alive.
 
+## Live Status Addendum (2026-04-14)
+
+This spec started as a build plan. Parts of it are now live, and the leaderboard architecture has moved beyond the older localStorage-only prompt text below.
+
+- `TicTacToe.tsx`, `Minesweeper.tsx`, and `Leaderboard.tsx` are implemented.
+- The Hall of Records is live and uses Vercel API routes plus Postgres-backed tables.
+- Snake leaderboard behavior is special:
+  - one row per username
+  - top-10 qualification
+  - signed run-token + replay verification before submission
+- Tic-Tac-Toe and Minesweeper leaderboard behavior is now per difficulty:
+  - one row per username **per difficulty**
+  - Hall of Records exposes a difficulty switch for both games
+- Username identity is session-claimed per browser visit for Tic-Tac-Toe and Minesweeper.
+- Reserved usernames like `zain` / `joyce` are protected; numeric override codes canonicalize to those identities.
+
 ---
 
 ## Game 1: Tic-Tac-Toe vs Mummy
@@ -120,7 +136,7 @@ Game logic:
 ## Global Leaderboard Page
 
 ### Concept
-A leaderboard accessible from the overworld (maybe a stone tablet prop near spawn, or part of the map overlay) that shows top scores across all mini-games. Uses the persistent storage API for shared data so all visitors can see each other's scores.
+A leaderboard accessible from the overworld stone tablet ("Hall of Records") and from mini-game result screens. This is now a live remote-backed feature, not just a design idea.
 
 ### Data structure
 Each entry:
@@ -129,14 +145,15 @@ Each entry:
   "playerName": "Zain",
   "game": "snake" | "minesweeper" | "tictactoe",
   "score": 2450,
-  "metadata": "Easy - 00:45" | "3 wins, 0 losses" | null,
+  "metadata": "Easy - 00:45" | "medium" | null,
+  "difficulty": "easy" | "medium" | "hard" | null,
   "timestamp": "2026-03-28T18:00:00Z"
 }
 ```
 
 For Snake: score = points
 For Minesweeper: score = time in seconds (lower is better), per difficulty
-For Tic-Tac-Toe: score = win streak count
+For Tic-Tac-Toe: score = win streak count, per difficulty
 
 ### Where it lives
 - A stone tablet or monument prop on the overworld near spawn
@@ -145,43 +162,28 @@ For Tic-Tac-Toe: score = win streak count
 
 ### Component
 - `Leaderboard.tsx` — React overlay component
-- Tabs or sections for each game
+- Tabs for each game
 - Shows top 10 per game
+- Tic-Tac-Toe and Minesweeper each expose an `easy / medium / hard` filter
 - Highlights the current player's entry if present
-- "Enter your name" prompt on first visit (store in localStorage)
+- Name ownership for Tic-Tac-Toe and Minesweeper is stored per browser visit in `sessionStorage`
 
-### Claude Code prompt
-```
-Add a global leaderboard system for all mini-games (Snake, Tic-Tac-Toe, Minesweeper).
+### Current backend shape
+- `GET /api/snake-leaderboard`
+  - returns the global Snake top 10
+- `POST /api/snake-leaderboard`
+  - uses the verified-run `start` / `submit` flow
+- `GET /api/tictactoe-leaderboard?difficulty=easy|medium|hard`
+  - returns the top 10 streaks for that difficulty
+- `POST /api/tictactoe-leaderboard`
+  - stores one row per `username_normalized + difficulty`
+- `GET /api/minesweeper-leaderboard?difficulty=easy|medium|hard`
+  - returns the top 10 times for that difficulty
+- `POST /api/minesweeper-leaderboard`
+  - stores one row per `username_normalized + difficulty`
 
-1. Create a LeaderboardManager class (src/game/LeaderboardManager.ts) that:
-   - Uses localStorage for the player's own scores
-   - Stores entries with: playerName, game, score, metadata, timestamp
-   - On first play of any game, prompts for a player name (stored in localStorage, reused)
-   - Keeps top 10 scores per game locally
-
-2. Create Leaderboard.tsx as a React overlay component:
-   - 3 tabs: Snake, Minesweeper, Tic-Tac-Toe
-   - Each tab shows a top-10 table with rank, player name, score, date
-   - Snake: ranked by highest score
-   - Minesweeper: ranked by fastest time per difficulty (show difficulty as a badge)
-   - Tic-Tac-Toe: ranked by longest win streak
-   - Highlight the current player's entries in gold/amber
-   - Press Start 2P font, dark background, pixel-art table styling
-   - Press Escape to close
-
-3. Update SnakeGame.tsx, TicTacToe.tsx, and Minesweeper.tsx:
-   - On game end, submit score to LeaderboardManager
-   - Show a "View Leaderboard" button after game over
-   - If the score is a new personal best, show a "New Record!" message
-
-4. Add a leaderboard interaction point on the overworld:
-   - Place a stone tablet prop near the spawn point
-   - Type 2 interaction that opens the Leaderboard overlay
-   - Label it "Hall of Records" or similar
-
-5. Sound effects: fanfare sound on new high score
-```
+### Current implementation note
+The old localStorage-only `LeaderboardManager` prompt below this point is obsolete. Future sessions should treat the live code in `src/lib/leaderboard.ts`, `src/components/Leaderboard.tsx`, and the three `/api/*-leaderboard.ts` routes as the source of truth.
 
 ---
 

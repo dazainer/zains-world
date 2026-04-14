@@ -70,6 +70,22 @@ These notes reflect the live codebase more reliably than some of the original de
   - exit signs are rendered above the real way out in interior rooms
 - A future Snake leaderboard handoff spec now lives in `SNAKE_LEADERBOARD_SPEC.md`.
   - It intentionally uses **top-10 qualification** for score submission instead of only allowing new #1 scores.
+- The Hall of Records leaderboard is now live and remote-backed.
+  - `src/components/Leaderboard.tsx` is the shared overlay opened from the overworld stone tablet and mini-game result screens.
+  - `src/lib/leaderboard.ts` owns shared fetch/submit/session helpers.
+  - `src/lib/leaderboardIdentity.ts` and `api/leaderboardIdentity.ts` own username validation, reserved names, profanity filtering, and override-code canonicalization.
+- Username ownership rules matter for bugfixes and admin work:
+  - plain `zain` and `joyce` are reserved usernames
+  - numeric override codes currently canonicalize to those names
+  - the current browser visit claims a username via `sessionStorage` (`lbSessionId` + `lbSessionPlayer`) for Tic-Tac-Toe and Minesweeper
+- Leaderboard storage model:
+  - Snake: one row per username, top-10 qualification, server-verified replay submission via signed run tokens
+  - Tic-Tac-Toe: one row per username **per difficulty**
+  - Minesweeper: one row per username **per difficulty**
+  - The Hall of Records UI exposes a difficulty switch for Tic-Tac-Toe and Minesweeper
+- Snake has one extra admin-only path:
+  - `SNAKE_ADMIN_CODE` can overwrite the special admin Snake row
+  - the normal numeric override codes do **not** bypass Snake duplicate-name checks
 - The static portfolio at `/portfolio` has been redesigned into a sticky-scrolling editorial layout in `src/components/StaticPortfolio.tsx`.
   - Portfolio-specific copy now lives in `src/data/personalInfoPortfolio.ts`.
   - The game still uses `src/data/personalInfo.ts`.
@@ -121,6 +137,9 @@ src/
 │   ├── DebugTerminal.tsx    # Easter egg functional terminal in secret room
 │   ├── BookshelfPanel.tsx   # Bookshelf interaction panel in secret room
 │   ├── SnakeGame.tsx        # Mini Snake game easter egg in secret room
+│   ├── TicTacToe.tsx        # Mini Tic-Tac-Toe game vs the mummy
+│   ├── Minesweeper.tsx      # Desert Minesweeper mini-game
+│   ├── Leaderboard.tsx      # Hall of Records overlay
 │   ├── WelcomeScreen.tsx    # First-load intro overlay that blocks input until dismissed
 │   └── StaticPortfolio.tsx  # Sticky-scrolling traditional portfolio at /portfolio
 ├── data/                    # Content data (add new content by editing these files)
@@ -133,8 +152,18 @@ src/
 │   └── terminalCommands.ts  # Debug terminal command responses
 ├── hooks/
 │   └── useGameEngine.ts     # React hook connecting canvas to game engine
+├── lib/
+│   ├── leaderboard.ts       # Shared remote leaderboard/session helpers
+│   ├── leaderboardIdentity.ts # Shared username validation + override codes
+│   ├── snakeAntiCheat.ts    # Snake replay simulation + verified-run constants
+│   └── snakeRunSession.ts   # Client helper that primes/takes signed Snake run sessions
 ├── App.tsx                  # Root: routes between game view ("/") and static portfolio ("/portfolio")
 └── main.tsx
+api/
+├── snake-leaderboard.ts     # Verified Snake leaderboard API
+├── tictactoe-leaderboard.ts # Tic-Tac-Toe leaderboard API (per difficulty)
+├── minesweeper-leaderboard.ts # Minesweeper leaderboard API (per difficulty)
+└── leaderboardIdentity.ts   # Server mirror of username validation + override codes
 public/
 ├── assets/
 │   ├── sprites/             # Character sprite sheets from Desert Dungeon Pack (pharaoh player, enemy)
@@ -186,6 +215,7 @@ The entire world is themed around Ancient Egypt and the desert, reflecting Zain'
   - **Contact Portal** (south) — glowing portal between pillars
 - **About Me NPC**: Egyptian-styled character (enemy sprite from dungeon pack repurposed as friendly NPC) standing near spawn
 - **Resume Chest**: animated treasure box sprite (from dungeon pack) near spawn area, triggers PDF download
+- **Hall of Records**: stone tablet near spawn that opens the shared leaderboard overlay
 - **Hidden path to Secret Room**: a fake wall tile in the northeast corner (walk through it)
 - Ambient animated camel idling near a building
 - Animated snake near the NE area (subtle hint toward secret room)
@@ -264,9 +294,17 @@ Pixel-art bookshelf with 4 visible books. Walk up + Space opens BookshelfPanel s
 **3. Snake Game**
 A playable mini Snake game (classic rules: eat food, grow, don't hit walls/yourself).
 Accessible via the debug terminal (`play snake`) or by interacting with a small arcade cabinet sprite.
-Simple canvas-based implementation, keeps a high score during the session.
+Canvas-based implementation with a session best score plus a server-verified global top-10 leaderboard.
 
-**4. Bulletin Board**
+**4. Tic-Tac-Toe Table**
+A playable mummy-themed Tic-Tac-Toe mini-game with easy / medium / hard difficulties.
+Tracks local stats and submits global win-streak leaderboard entries per difficulty.
+
+**5. Scorpion Sweep**
+A desert Minesweeper mini-game with easy / medium / hard difficulties.
+Tracks local stats and submits global best-time leaderboard entries per difficulty.
+
+**6. Bulletin Board**
 A board on the wall with rotating notices (changes each visit or on interaction):
 - "NOTICE: The developer of this world once organized a fully Arabic MUN conference for 150 delegates"
 - "NOTICE: This developer speaks English, Arabic, and French"
@@ -274,7 +312,7 @@ A board on the wall with rotating notices (changes each visit or on interaction)
 - "NOTICE: This developer survived Math AA HL and Physics HL simultaneously"
 - "NOTICE: This world was built in a weekend using Claude Code"
 
-**5. Jukebox**
+**7. Jukebox**
 A jukebox sprite that, when interacted with, opens a link to Zain's Spotify profile/playlist in a new tab.
 
 ### About Me NPC

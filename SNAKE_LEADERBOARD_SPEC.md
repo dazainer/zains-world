@@ -2,6 +2,19 @@
 
 This document defines the intended leaderboard feature for the Snake mini-game in `src/components/SnakeGame.tsx`.
 
+## Live Implementation Addendum (2026-04-14)
+
+The live Snake leaderboard is stricter than the original simplified POST example below.
+
+- `POST /api/snake-leaderboard` now supports two actions:
+  - `{"action":"start"}` to mint a signed run token + deterministic food seed
+  - `{"action":"submit", ...}` to submit score + replay turns for server verification
+- The server stores one-time run sessions in `snake_leaderboard_run_sessions` and replays the run before insertion.
+- Snake still uses one row per username, unlike Tic-Tac-Toe and Minesweeper which are now per-difficulty.
+- Username validation shares the same reserved-name / profanity / override-code model as the other leaderboards.
+- Plain `zain` / `joyce` remain reserved; numeric override codes canonicalize to those identities.
+- A separate `SNAKE_ADMIN_CODE` env var can overwrite the special admin Snake row; the normal override codes do not bypass duplicate-name checks.
+
 ## Goal
 
 Add a persistent online leaderboard for Snake that:
@@ -144,12 +157,28 @@ Behavior:
 
 #### `POST /api/snake-leaderboard`
 
-Input:
+Current live inputs:
+
+Start a verified run:
 
 ```json
 {
+  "action": "start"
+}
+```
+
+Submit a verified run:
+
+```json
+{
+  "action": "submit",
   "username": "pharaoh_dev",
-  "score": 21
+  "score": 21,
+  "runToken": "signed-token-here",
+  "turns": [
+    { "tick": 7, "direction": "DOWN" },
+    { "tick": 12, "direction": "LEFT" }
+  ]
 }
 ```
 
@@ -159,6 +188,10 @@ Validation:
 - username not already taken
 - score is a positive integer
 - score qualifies for the current top 10
+- run token signature / expiry valid
+- replay reaches a valid game-over state
+- replayed score matches submitted score
+- elapsed time is not faster than the game rules allow
 
 Responses:
 
