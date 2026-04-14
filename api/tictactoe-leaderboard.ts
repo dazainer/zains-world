@@ -3,9 +3,9 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 import {
   canonicalizeIdentity,
-  isBetterScore,
+  isBetterDescending,
   validateLeaderboardName,
-} from '../src/lib/leaderboardIdentity'
+} from './leaderboardIdentity'
 
 type SqlClient = ReturnType<typeof getDb>
 
@@ -87,7 +87,7 @@ async function handleSubmit(body: SubmitRequest, res: VercelResponse) {
 
   if (existingRows.length > 0) {
     const existingScore = existingRows[0].score as number
-    if (!isBetterScore('tictactoe', score, existingScore)) {
+    if (!isBetterDescending(score, existingScore)) {
       return res.status(200).json({ success: true, keptExisting: true })
     }
   } else {
