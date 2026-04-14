@@ -4,6 +4,7 @@ import type { Direction } from '../Player'
 import type { RectDoorDef, RoomData } from '../RoomManager'
 import type { Frame } from '../SpriteSheet'
 import type { TileMap } from '../TileRenderer'
+import { GUEST_BOOK_INTERACTION_ID } from '../../lib/guestbook'
 
 const INNER_COLS = 13
 const NORTH_EXPANSION_ROWS = 5
@@ -22,10 +23,32 @@ export const MAP_PIXEL_H = ROWS * TILE_SIZE
 const CONTENT_PIXEL_INSET = CONTENT_TILE_INSET * TILE_SIZE
 const SOUTH_PIXEL_OFFSET = (NORTH_EXPANSION_ROWS + CONTENT_TILE_INSET) * TILE_SIZE
 
-export const SPAWN = {
+const DEFAULT_SPAWN = {
   x: 6 * TILE_SIZE + TILE_SIZE / 2 + CONTENT_PIXEL_INSET,
   y: 6 * TILE_SIZE + TILE_SIZE / 2 + SOUTH_PIXEL_OFFSET,
 }
+
+const DEV_SPHINX_SPAWN = {
+  x: 112,
+  y: 184,
+  direction: 'down' as Direction,
+}
+
+function resolveSpawnOverride() {
+  if (!import.meta.env.DEV || typeof window === 'undefined') return null
+
+  const devSpawn = new URLSearchParams(window.location.search).get('devSpawn')
+  if (devSpawn === 'sphinx') {
+    return {
+      x: DEV_SPHINX_SPAWN.x,
+      y: DEV_SPHINX_SPAWN.y,
+    }
+  }
+
+  return null
+}
+
+export const SPAWN = resolveSpawnOverride() ?? DEFAULT_SPAWN
 
 export type OverworldSheetKey = 'desert' | 'pyramidDoor' | 'pyramid' | 'sphinx' | 'pillar' | 'dungeonProps'
 
@@ -37,6 +60,7 @@ export interface OverworldStaticSpriteDef {
   worldY: number
   renderW: number
   renderH: number
+  flipX?: boolean
   label?: string
   occlusionStartY?: number
   renderLayer?: 'default' | 'shrubbery'
@@ -183,6 +207,7 @@ function placePropAtTileBase(
   dx = 0,
   dy = 0,
   renderLayer: 'default' | 'shrubbery' = 'default',
+  flipX = false,
 ): OverworldStaticSpriteDef {
   const baseCenterX = contentCol(col) * TILE_SIZE + TILE_SIZE / 2
   const baseY = (row + 1) * TILE_SIZE
@@ -195,6 +220,7 @@ function placePropAtTileBase(
     worldY: Math.round(baseY - renderH + dy),
     renderW,
     renderH,
+    flipX,
     renderLayer,
   }
 }
@@ -796,6 +822,7 @@ export const overworldProps: OverworldStaticSpriteDef[] = [
   placePropAtTileBase('prop15-a', DESERT_FRAMES.prop15, 18, 18, 0, southRow(0)),
   placePropAtTileBase('prop16-a', DESERT_FRAMES.prop16, 28, 21, 10, southRow(2), -5, -2),
   placePropAtTileBase('sign-a', DESERT_FRAMES.sign, 22, 26, 4, southRow(1), 0, 3),
+  placePropAtTileBase('sign-b', DESERT_FRAMES.sign, 22, 26, 7, 15, 0, 3, 'default', true),
   placePropAtTileBase('prop17-a', DESERT_FRAMES.prop17, 25, 32, 3, southRow(6)),
   {
     id: 'resume-loot-gold',
@@ -889,6 +916,20 @@ const resumeChestRect: CollisionRect = {
   height: 11,
 }
 
+const hallOfRecordsRect = {
+  x: 194,
+  y: 264,
+  width: 28,
+  height: 28,
+}
+
+const guestBookRect = {
+  x: 290,
+  y: 488,
+  width: 28,
+  height: 28,
+}
+
 const interactionRects: RoomData['interactionRects'] = [
   {
     x: Math.round(welcomeMummy.worldX + welcomeMummy.renderW / 2 - 20),
@@ -903,6 +944,15 @@ const interactionRects: RoomData['interactionRects'] = [
     width: 40,
     height: 40,
     id: 'resume-chest',
+  },
+  {
+    ...hallOfRecordsRect,
+    id: 'hall-of-records',
+  },
+  {
+    ...guestBookRect,
+    id: 'guestbook-zone',
+    payload: GUEST_BOOK_INTERACTION_ID,
   },
 ]
 

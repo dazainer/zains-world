@@ -6,11 +6,14 @@
  * Torch flame: 16×16 source (dungeon pack) drawn at 32×32 (2× scale).
  */
 import { SpriteSheet, Animation, type Frame } from './SpriteSheet'
+import type { Direction } from './Player'
 
 export type AmbientType = 'camel' | 'snake' | 'torch' | 'npc' | 'chest'
 
 export interface AmbientSpriteConfig {
+  id?: string
   type: AmbientType
+  facing?: Direction
   /** World-space top-left x of the rendered sprite */
   x: number
   /** World-space top-left y of the rendered sprite */
@@ -22,9 +25,11 @@ export interface AmbientSpriteConfig {
 }
 
 export class AmbientSprite {
+  readonly id: string
   readonly x: number
   readonly y: number
   readonly type: AmbientType
+  readonly facing: Direction | null
   private renderW: number
   private _renderH: number
 
@@ -32,9 +37,11 @@ export class AmbientSprite {
   private animation: Animation | null = null
 
   constructor(config: AmbientSpriteConfig) {
+    this.id = config.id ?? `${config.type}-${config.x}-${config.y}`
     this.x = config.x
     this.y = config.y
     this.type = config.type
+    this.facing = config.facing ?? null
     this.renderW = config.renderW ?? 32
     this._renderH = config.renderH ?? 32
   }
@@ -53,6 +60,10 @@ export class AmbientSprite {
 
   /** Y coordinate of the sprite's bottom edge — used for Y-sort rendering. */
   get sortY(): number { return this.y + this._renderH }
+  get width(): number { return this.renderW }
+  get height(): number { return this._renderH }
+  get centerX(): number { return this.x + this.renderW / 2 }
+  get centerY(): number { return this.y + this._renderH / 2 }
 
   update(dt: number) {
     this.animation?.update(dt)

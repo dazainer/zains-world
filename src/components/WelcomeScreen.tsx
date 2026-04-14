@@ -14,6 +14,12 @@ import { useState, useEffect, useCallback } from 'react'
 
 const SESSION_KEY = 'zw-welcome-seen'
 const WELCOME_SCREEN_ENABLED = true
+const DEV_SKIP_INTRO_PARAM = 'devSkipIntro'
+
+function shouldSkipWelcomeForDev(): boolean {
+  if (!import.meta.env.DEV || typeof window === 'undefined') return false
+  return new URLSearchParams(window.location.search).get(DEV_SKIP_INTRO_PARAM) === '1'
+}
 
 function isReloadNavigation(): boolean {
   const navEntry = performance.getEntriesByType('navigation')[0]
@@ -27,6 +33,7 @@ if (WELCOME_SCREEN_ENABLED && typeof window !== 'undefined' && isReloadNavigatio
 /** Returns true if the welcome screen should be shown. */
 export function shouldShowWelcome(): boolean {
   if (!WELCOME_SCREEN_ENABLED) return false
+  if (shouldSkipWelcomeForDev()) return false
   return sessionStorage.getItem(SESSION_KEY) !== '1'
 }
 

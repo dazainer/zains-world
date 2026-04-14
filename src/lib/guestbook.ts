@@ -24,8 +24,9 @@ export interface GuestMessage {
 const KEY_MESSAGES  = 'guestbook_messages'
 const KEY_LAST_POST = 'guestbook_last_post'
 const KEY_LAST_NAME = 'guestbook_last_name'
-const MAX_MESSAGES  = 50
+export const MAX_MESSAGES  = 50
 const RATE_LIMIT_MS = 60 * 60 * 1000  // 1 hour
+export const GUEST_BOOK_INTERACTION_ID = 'guest-book'
 
 export const NOTE_COLORS: readonly string[] = [
   '#E8D8A0',  // sand / papyrus
@@ -62,6 +63,10 @@ function writeMessages(msgs: GuestMessage[]): void {
 /** Return all stored messages, most-recent first. */
 export function getMessages(): GuestMessage[] {
   return readMessages()
+}
+
+export function getMessageCount(): number {
+  return readMessages().length
 }
 
 // ── Public: rate limit ────────────────────────────────────────────────────────

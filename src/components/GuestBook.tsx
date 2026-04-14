@@ -71,6 +71,7 @@ export default function GuestBook({ onClose }: Props) {
   const [msLeft, setMsLeft] = useState(() => msUntilNextPost())
 
   const boardRef = useRef<HTMLDivElement>(null)
+  const justPostedTimerRef = useRef<number | null>(null)
 
   // ── Rate-limit countdown ──────────────────────────────────────────────────
 
@@ -85,13 +86,32 @@ export default function GuestBook({ onClose }: Props) {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return
-      if (e.code === 'Escape') { e.preventDefault(); onClose() }
+      if (e.repeat) return
+      if (e.code !== 'Escape') return
+
+      const active = document.activeElement as HTMLElement | null
+      const tag = active?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') {
+        e.preventDefault()
+        active?.blur()
+        return
+      }
+
+      e.preventDefault()
+      onClose()
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
+
+  useEffect(() => {
+    return () => {
+      if (justPostedTimerRef.current !== null) {
+        window.clearTimeout(justPostedTimerRef.current)
+        justPostedTimerRef.current = null
+      }
+    }
+  }, [])
 
   // ── Submit ────────────────────────────────────────────────────────────────
 
@@ -115,7 +135,13 @@ export default function GuestBook({ onClose }: Props) {
     setMessage('')
     setMsLeft(msUntilNextPost())
     setJustPosted(true)
-    setTimeout(() => setJustPosted(false), 2800)
+    if (justPostedTimerRef.current !== null) {
+      window.clearTimeout(justPostedTimerRef.current)
+    }
+    justPostedTimerRef.current = window.setTimeout(() => {
+      setJustPosted(false)
+      justPostedTimerRef.current = null
+    }, 2800)
 
     // Scroll board to top to show the new note
     if (boardRef.current) boardRef.current.scrollTop = 0
@@ -187,13 +213,18 @@ export default function GuestBook({ onClose }: Props) {
 
         {/* ── Compose section ────────────────────────────────────────────── */}
         <div style={s.composeSection}>
+          {justPosted && (
+            <p style={s.successMsg}>
+              📌 Note pinned! Come back in <span style={{ color: ACCENT }}>{formatMs(msLeft)}</span> to post again.
+            </p>
+          )}
 
           {rateLimited ? (
             /* Rate-limit notice */
             <div style={s.rateLimitBox}>
               <span style={s.rateLimitIcon}>⏳</span>
               <div>
-                <p style={s.rateLimitTitle}>Already pinned a note!</p>
+                <p style={s.rateLimitTitle}>{justPosted ? 'Note pinned!' : 'Already pinned a note!'}</p>
                 <p style={s.rateLimitSub}>Next post in <span style={{ color: ACCENT }}>{formatMs(msLeft)}</span></p>
               </div>
             </div>
@@ -203,9 +234,10 @@ export default function GuestBook({ onClose }: Props) {
 
               {/* Name row */}
               <div style={s.fieldRow}>
-                <label style={s.fieldLabel}>NAME</label>
+                <label style={s.fieldLabel} htmlFor="gb-name">NAME</label>
                 <div style={s.fieldBody}>
                   <input
+                    id="gb-name"
                     type="text"
                     value={name}
                     onChange={e => { setName(e.target.value); setNameError(null) }}
@@ -223,9 +255,10 @@ export default function GuestBook({ onClose }: Props) {
 
               {/* Message row */}
               <div style={s.fieldRow}>
-                <label style={s.fieldLabel}>MSG</label>
+                <label style={s.fieldLabel} htmlFor="gb-msg">MSG</label>
                 <div style={s.fieldBody}>
                   <textarea
+                    id="gb-msg"
                     value={message}
                     onChange={e => { setMessage(e.target.value.slice(0, 100)); setMsgError(null) }}
                     placeholder="Leave a message for future visitors…"
@@ -291,12 +324,9 @@ export default function GuestBook({ onClose }: Props) {
               {submitError && (
                 <p style={s.submitError}>{submitError}</p>
               )}
-              {justPosted && (
-                <p style={s.successMsg}>📌 Note pinned!</p>
-              )}
-
             </form>
           )}
+
         </div>
 
         {/* ── Footer hint ────────────────────────────────────────────────── */}
@@ -616,11 +646,11 @@ const s: Record<string, React.CSSProperties> = {
     lineHeight: 1.5,
   },
   successMsg: {
-    margin: '0.1rem 0 0',
-    paddingLeft: '3.05rem',
+    margin: '0 0 0.4rem',
     fontFamily: FONT,
-    fontSize: '0.4rem',
+    fontSize: '0.38rem',
     color: '#5DCAA5',
+    lineHeight: 1.6,
   },
 
   // ── Rate limit notice ─────────────────────────────────────────────────────

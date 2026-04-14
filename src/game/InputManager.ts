@@ -12,19 +12,19 @@ export interface InputState {
   escape: boolean
 }
 
-// Deploy-safe default: keep the debug systems in code, but disable keyboard access.
 const DEBUG_KEY_TOGGLES_ENABLED = false
 
 export class InputManager {
   private keys: Record<string, boolean> = {}
   private virtual: Partial<InputState> = {}
 
-  // Consumed-once flags (set true on keydown, cleared after one read)
+// Consumed-once flags (set true on keydown, cleared after one read)
   private interactConsumed = false
   private escapeConsumed = false
   private debugOverlayQueued = false
   private overworldLayerCycleQueued = false
   private mapToggleQueued = false
+  private dayNightSpeedToggleQueued = false
 
   constructor() {
     window.addEventListener('keydown', this.onKeyDown)
@@ -66,6 +66,11 @@ export class InputManager {
 
     if (e.code === 'KeyM' && !e.repeat) {
       this.mapToggleQueued = true
+    }
+
+    if (false && import.meta.env.DEV && e.code === 'Semicolon' && !e.repeat) {
+      this.dayNightSpeedToggleQueued = true
+      e.preventDefault()
     }
 
     // Prevent page scroll from arrow keys
@@ -138,6 +143,15 @@ export class InputManager {
   consumeMapToggle(): boolean {
     if (this.mapToggleQueued) {
       this.mapToggleQueued = false
+      return true
+    }
+    return false
+  }
+
+  /** Returns true once per semicolon key press to cycle day/night speed in dev. */
+  consumeDayNightSpeedToggle(): boolean {
+    if (this.dayNightSpeedToggleQueued) {
+      this.dayNightSpeedToggleQueued = false
       return true
     }
     return false

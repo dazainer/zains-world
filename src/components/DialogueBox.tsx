@@ -1,9 +1,10 @@
 /**
  * DialogueBox — RPG-style text box with typewriter effect.
- * Anchored to bottom of screen, ~80% width, centered.
- * Space advances pages; last page auto-closes.
+ * Supports both the original page-based flow and branching dialogue trees.
  */
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+
+import type { DialogueNode } from '../data/dialogueTree'
 
 export interface DialogueState {
   pages: string[]
@@ -12,19 +13,60 @@ export interface DialogueState {
   onTypingProgress?: (visibleChars: number) => void
 }
 
-interface Props extends DialogueState {}
+export interface DialogueTreeState {
+  tree: Record<string, DialogueNode>
+  startId: string
+  onComplete: () => void
+  onTypingStateChange?: (typing: boolean) => void
+  onTypingProgress?: (visibleChars: number) => void
+}
+
+type Props = DialogueState | DialogueTreeState
 
 const CHARS_PER_SECOND = 30
 
-export default function DialogueBox({ pages, onComplete, onTypingStateChange, onTypingProgress }: Props) {
+function isTreeDialogue(props: Props): props is DialogueTreeState {
+  return 'tree' in props
+}
+
+export default function DialogueBox(props: Props) {
+  const { onComplete, onTypingStateChange, onTypingProgress } = props
+  const treeMode = isTreeDialogue(props)
+
+  const pages = useMemo(
+    () => (!treeMode ? props.pages : []),
+    [props, treeMode],
+  )
+
   const [pageIndex, setPageIndex] = useState(0)
+  const [nodeId, setNodeId] = useState(treeMode ? props.startId : '')
   const [displayed, setDisplayed] = useState('')
   const [isComplete, setIsComplete] = useState(false)
+  const [choiceIndex, setChoiceIndex] = useState(0)
   const timerRef = useRef<number | null>(null)
 
-  const currentText = pages[pageIndex] ?? ''
+  useEffect(() => {
+    if (treeMode) {
+      setNodeId(props.startId)
+      setChoiceIndex(0)
+    }
+  }, [props, treeMode])
 
-  // Typewriter effect
+  const currentNode = treeMode ? props.tree[nodeId] ?? null : null
+  const currentText = treeMode
+    ? (currentNode?.text ?? '')
+    : (pages[pageIndex] ?? '')
+  const choices = treeMode ? currentNode?.choices ?? [] : []
+  const speakerLabel = treeMode
+    ? currentNode?.speaker === 'player'
+      ? 'YOU'
+      : 'MUMMY'
+    : null
+
+  useEffect(() => {
+    setChoiceIndex(0)
+  }, [nodeId, pageIndex])
+
   useEffect(() => {
     if (timerRef.current !== null) {
       window.clearInterval(timerRef.current)
@@ -67,7 +109,7 @@ export default function DialogueBox({ pages, onComplete, onTypingStateChange, on
       onTypingStateChange?.(false)
       onTypingProgress?.(0)
     }
-  }, [pageIndex, currentText, onTypingProgress, onTypingStateChange])
+  }, [currentText, onTypingProgress, onTypingStateChange])
 
   const revealFullPage = useCallback(() => {
     if (timerRef.current !== null) {
@@ -85,14 +127,35 @@ export default function DialogueBox({ pages, onComplete, onTypingStateChange, on
       revealFullPage()
       return
     }
+
+    if (treeMode) {
+      if (!currentNode) {
+        onComplete()
+        return
+      }
+
+      if (choices.length > 0) {
+        const nextId = choices[choiceIndex]?.nextId
+        if (nextId) setNodeId(nextId)
+        return
+      }
+
+      if (currentNode.nextId) {
+        setNodeId(currentNode.nextId)
+        return
+      }
+
+      onComplete()
+      return
+    }
+
     if (pageIndex < pages.length - 1) {
       setPageIndex((i) => i + 1)
     } else {
       onComplete()
     }
-  }, [isComplete, pageIndex, pages.length, onComplete, revealFullPage])
+  }, [choiceIndex, choices, currentNode, isComplete, onComplete, pageIndex, pages.length, revealFullPage, treeMode])
 
-  // Space/Enter advance, Escape closes
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.repeat) return
@@ -101,6 +164,20 @@ export default function DialogueBox({ pages, onComplete, onTypingStateChange, on
         onComplete()
         return
       }
+
+      if (treeMode && isComplete && choices.length > 0) {
+        if (e.code === 'ArrowUp') {
+          e.preventDefault()
+          setChoiceIndex((i) => (i - 1 + choices.length) % choices.length)
+          return
+        }
+        if (e.code === 'ArrowDown') {
+          e.preventDefault()
+          setChoiceIndex((i) => (i + 1) % choices.length)
+          return
+        }
+      }
+
       if (e.code === 'Space' || e.code === 'Enter') {
         e.preventDefault()
         advance()
@@ -108,13 +185,48 @@ export default function DialogueBox({ pages, onComplete, onTypingStateChange, on
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [advance, onComplete])
+  }, [advance, choices.length, isComplete, onComplete, treeMode])
+
+  const handleChoiceClick = useCallback((index: number) => {
+    if (!isComplete) {
+      revealFullPage()
+      return
+    }
+    setChoiceIndex(index)
+    const nextId = choices[index]?.nextId
+    if (nextId) setNodeId(nextId)
+  }, [choices, isComplete, revealFullPage])
 
   return (
-    <div style={styles.overlay} onClick={advance}>
+    <div style={styles.overlay} onClick={choices.length > 0 && isComplete ? undefined : advance}>
       <div style={styles.box}>
+        {speakerLabel && <div style={styles.speakerTag}>{speakerLabel}</div>}
         <p style={styles.text}>{displayed}</p>
-        {isComplete && <span style={styles.indicator}>▼</span>}
+
+        {isComplete && choices.length > 0 && (
+          <div style={styles.choiceList} onClick={(e) => e.stopPropagation()}>
+            {choices.map((choice, index) => {
+              const selected = index === choiceIndex
+              return (
+                <button
+                  key={`${choice.label}-${choice.nextId}`}
+                  type="button"
+                  style={{
+                    ...styles.choiceBtn,
+                    ...(selected ? styles.choiceBtnSelected : null),
+                  }}
+                  onMouseEnter={() => setChoiceIndex(index)}
+                  onClick={() => handleChoiceClick(index)}
+                >
+                  <span style={styles.choiceCursor}>{selected ? '>' : ' '}</span>
+                  <span>{choice.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {isComplete && choices.length === 0 && <span style={styles.indicator}>▼</span>}
       </div>
     </div>
   )
@@ -132,13 +244,24 @@ const styles: Record<string, React.CSSProperties> = {
     zIndex: 20,
   },
   box: {
-    background: 'rgba(20, 12, 4, 0.92)',
+    background: 'rgba(20, 12, 4, 0.94)',
     border: '3px solid #c8a850',
-    padding: '1.2rem 1.45rem',
+    padding: '1rem 1.45rem 1.2rem',
     minHeight: '104px',
     position: 'relative',
     borderRadius: '10px',
     boxShadow: '0 12px 28px rgba(0, 0, 0, 0.28)',
+  },
+  speakerTag: {
+    display: 'inline-block',
+    marginBottom: '0.8rem',
+    padding: '0.28rem 0.55rem',
+    border: '2px solid rgba(200, 168, 80, 0.7)',
+    background: 'rgba(0, 0, 0, 0.22)',
+    color: '#f0d494',
+    fontFamily: "'Press Start 2P', monospace",
+    fontSize: '0.5rem',
+    letterSpacing: '0.08em',
   },
   text: {
     fontFamily: 'system-ui, sans-serif',
@@ -147,6 +270,37 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#f5e6c8',
     margin: 0,
     whiteSpace: 'pre-line',
+  },
+  choiceList: {
+    marginTop: '1rem',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.45rem',
+  },
+  choiceBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.45rem',
+    width: '100%',
+    background: 'rgba(32, 18, 6, 0.88)',
+    border: '2px solid rgba(200, 168, 80, 0.28)',
+    color: '#f5e6c8',
+    padding: '0.7rem 0.8rem',
+    textAlign: 'left',
+    cursor: 'pointer',
+    fontFamily: "'Press Start 2P', monospace",
+    fontSize: '0.55rem',
+    lineHeight: 1.8,
+  },
+  choiceBtnSelected: {
+    border: '2px solid #c8a850',
+    background: 'rgba(56, 32, 10, 0.95)',
+    boxShadow: '0 0 0 1px rgba(255, 226, 153, 0.2) inset',
+  },
+  choiceCursor: {
+    color: '#f0d494',
+    width: '0.75rem',
+    flex: '0 0 auto',
   },
   indicator: {
     position: 'absolute',

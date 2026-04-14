@@ -1,7 +1,5 @@
 /**
- * Pyramid Lore — Skills Forge interior for the Door Pyramid.
- * Armory/workshop feel with shelves along the walls, skills grouped by category.
- * Languages (north wall), Backend (west wall), Frontend (east wall), Tools (near door).
+ * Pyramid Lore — condensed skills + builder workshop exhibit inside the Door Pyramid.
  */
 import type { TileType } from '../CollisionMap'
 import type { RoomData, DoorDef, InteractionZoneDef } from '../RoomManager'
@@ -10,6 +8,7 @@ import { AmbientSprite } from '../AmbientSprite'
 import { EGYPT_VASE_FRAMES, placeInteriorDeco } from '../InteriorDeco'
 import { OVERWORLD_RETURN_SPAWNS } from './overworld'
 import { skills, type Skill } from '../../data/skills'
+import { workshopStations } from '../../data/buildersWorkshop'
 
 const COLS = 12
 const ROWS = 12
@@ -30,21 +29,15 @@ const collisionGrid: TileType[][] = [
 /* 1 */[W, W, W, W, W, W, W, W, W, W, W, W],  // top shelf backing (languages)
 /* 2 */[W, F, F, F, F, F, F, F, F, F, F, W],  // language interaction row
 /* 3 */[W, F, F, F, F, F, F, F, F, F, F, W],  // walkway
-/* 4 */[W, W, W, W, F, F, F, F, F, W, W, W],  // side shelf backing (extended for backend/frontend)
+/* 4 */[W, W, W, F, F, F, F, F, F, W, W, W],  // lower skill shelf / open aisle
 /* 5 */[W, F, F, F, F, F, F, F, F, F, F, W],  // side interaction row
 /* 6 */[W, F, F, F, F, F, F, F, F, F, F, W],  // walkway
-/* 7 */[W, W, W, F, F, W, F, F, F, F, W, W],  // lower side shelf backing + tools shelf
+/* 7 */[W, W, F, F, F, F, F, F, F, F, W, W],  // workshop plaque row
 /* 8 */[W, F, F, F, F, F, F, F, F, F, F, W],  // side interaction row / tools
 /* 9 */[W, F, F, F, F, F, F, F, F, F, F, W],  // walkway
 /*10 */[W, F, F, F, F, F, F, F, F, F, F, W],  // approach to door
 /*11 */[W, W, W, W, W, D, D, W, W, W, W, W],  // bottom wall + exit door
 ]
-
-// ── Skill placement by category ─────────────────────────────────────────────
-// Languages: north wall (row 2, facing shelves on row 1)
-// Backend: west wall shelves (rows 5 and 8 col 1)
-// Frontend: east wall shelves (rows 5 and 8 col 10)
-// Tools: near the door (row 8)
 
 interface SkillSpot {
   col: number
@@ -54,79 +47,74 @@ interface SkillSpot {
   skill: Skill
 }
 
-const byCategory = {
-  language: skills.filter(s => s.category === 'language'),
-  backend:  skills.filter(s => s.category === 'backend'),
-  frontend: skills.filter(s => s.category === 'frontend'),
-  tool:     skills.filter(s => s.category === 'tool'),
+const skillByName = new Map(skills.map((skill) => [skill.name, skill]))
+
+const skillLayout = [
+  { name: 'Python',     col: 5, row: 2 },
+  { name: 'C',          col: 6, row: 2 },
+  { name: 'TypeScript', col: 2, row: 3 },
+  { name: 'JavaScript', col: 3, row: 3 },
+  { name: 'SQL',        col: 4, row: 3 },
+  { name: 'Node.js',    col: 5, row: 3 },
+  { name: 'PostgreSQL', col: 6, row: 3 },
+  { name: 'FastAPI',    col: 7, row: 3 },
+  { name: 'React',      col: 8, row: 3 },
+  { name: 'Git',        col: 9, row: 3 },
+  { name: 'Express',    col: 4, row: 4 },
+  { name: 'REST APIs',  col: 5, row: 4 },
+  { name: 'HTML/CSS',   col: 6, row: 4 },
+  { name: 'Racket',     col: 7, row: 4 },
+] as const
+
+const skillSpots: SkillSpot[] = skillLayout.flatMap(({ name, col, row }) => {
+  const skill = skillByName.get(name)
+  if (!skill) return []
+  return [{
+    col,
+    row,
+    id: `skill-${skill.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+    payload: skill.name,
+    skill,
+  }]
+})
+
+interface WorkshopSpot {
+  col: number
+  row: number
+  id: string
+  payload: string
+  title: string
+  label: string
+  placement: string
 }
 
-const skillSpots: SkillSpot[] = []
+const workshopSpotById = {
+  'workshop-assets':  { col: 4, row: 7 },
+  'workshop-numbers': { col: 5, row: 7 },
+  'workshop-engine':  { col: 6, row: 7 },
+  'workshop-stack':   { col: 7, row: 7 },
+} as const
 
-// Languages along north wall — row 2, cols 1–10 (centered for 6 skills)
-const langStart = Math.floor((10 - byCategory.language.length) / 2) + 1
-byCategory.language.forEach((skill, i) => {
-  skillSpots.push({
-    col: langStart + i,
-    row: 2,
-    id: `skill-${skill.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
-    payload: skill.name,
-    skill,
-  })
-})
-
-// Backend along west side — col 1 row 5, then col 1 row 8, then spill to col 2
-// 5 backend skills: Node.js, PostgreSQL, FastAPI, Express, REST APIs
-const backendPositions = [
-  { col: 1, row: 5 },   // west shelf upper
-  { col: 2, row: 5 },
-  { col: 3, row: 5 },
-  { col: 1, row: 8 },   // west shelf lower
-  { col: 2, row: 8 },
-]
-byCategory.backend.forEach((skill, i) => {
-  const pos = backendPositions[i]
-  if (!pos) return
-  skillSpots.push({
+const workshopSpots: WorkshopSpot[] = workshopStations
+  .filter((station) => station.id in workshopSpotById)
+  .map((station) => {
+  const pos = workshopSpotById[station.id as keyof typeof workshopSpotById]
+  return {
     col: pos.col,
     row: pos.row,
-    id: `skill-${skill.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
-    payload: skill.name,
-    skill,
-  })
-})
-
-// Frontend along east side — col 10 rows 5 and 8
-// 2 frontend skills: React, HTML/CSS
-const frontendPositions = [
-  { col: 10, row: 5 },  // east shelf upper
-  { col: 9,  row: 5 },
-]
-byCategory.frontend.forEach((skill, i) => {
-  const pos = frontendPositions[i]
-  if (!pos) return
-  skillSpots.push({
-    col: pos.col,
-    row: pos.row,
-    id: `skill-${skill.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
-    payload: skill.name,
-    skill,
-  })
-})
-
-// Tools near the door — row 8, centered
-byCategory.tool.forEach((skill, i) => {
-  skillSpots.push({
-    col: 5 + i,
-    row: 8,
-    id: `skill-${skill.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
-    payload: skill.name,
-    skill,
-  })
+    id: station.id,
+    payload: station.id,
+    title: station.title,
+    label: station.label,
+    placement: station.placement,
+  }
 })
 
 // Stamp interaction zones into grid
 for (const spot of skillSpots) {
+  collisionGrid[spot.row][spot.col] = I
+}
+for (const spot of workshopSpots) {
   collisionGrid[spot.row][spot.col] = I
 }
 
@@ -163,11 +151,24 @@ export interface CategoryLabel {
 }
 
 export const categoryLabels: CategoryLabel[] = [
-  { label: 'LANGUAGES',  x: 6 * T,    y: 0.5 * T,  color: '#c8a850' },
-  { label: 'BACKEND',    x: 0.5 * T,  y: 3.5 * T,  color: '#4ec9b0' },
-  { label: 'FRONTEND',   x: 11.5 * T, y: 3.5 * T,  color: '#569cd6' },
-  { label: 'TOOLS',      x: 5.5 * T,  y: 7.5 * T,  color: '#9a9a9a' },
+  { label: "BUILDER'S WORKSHOP", x: 6 * T, y: 6.5 * T, color: '#f0d494' },
 ]
+
+export interface WorkshopPlaqueDeco {
+  col: number
+  row: number
+  title: string
+  label: string
+  placement: string
+}
+
+export const workshopPlaques: WorkshopPlaqueDeco[] = workshopSpots.map((spot) => ({
+  col: spot.col,
+  row: spot.row,
+  title: spot.title,
+  label: spot.label,
+  placement: spot.placement,
+}))
 
 const spriteDecos = [
   placeInteriorDeco('top-left-bowl', 'vase', EGYPT_VASE_FRAMES.bowl, 1, 1, 18, 14, 7, 10),
@@ -187,12 +188,20 @@ const doors: DoorDef[] = [
 ]
 
 // ── Interaction zones ───────────────────────────────────────────────────────
-const interactionZones: InteractionZoneDef[] = skillSpots.map(({ col, row, id, payload }) => ({
-  col,
-  row,
-  id,
-  payload,
-}))
+const interactionZones: InteractionZoneDef[] = [
+  ...skillSpots.map(({ col, row, id, payload }) => ({
+    col,
+    row,
+    id,
+    payload,
+  })),
+  ...workshopSpots.map(({ col, row, id, payload }) => ({
+    col,
+    row,
+    id,
+    payload,
+  })),
+]
 
 // ── Ambient sprites (torches on walls) ──────────────────────────────────────
 function buildAmbients(): AmbientSprite[] {

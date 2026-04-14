@@ -1,9 +1,10 @@
 /**
  * Secret Room — hidden personal hideout, accessed via fake wall in the Sphinx.
- * Cozy, atmospheric room with 6 interactive stations:
+ * Cozy, atmospheric room with 7 interactive stations:
  *   Debug Terminal (back wall center), Bookshelf (left wall),
  *   Snake Game console + Tic-Tac-Toe cabinet (right wall),
- *   Bulletin Board (back wall left), Jukebox (back wall right).
+ *   Bulletin Board (back wall left), Jukebox (back wall right),
+ *   Minesweeper patch (left wall).
  */
 import type { TileType } from '../CollisionMap'
 import type { RoomData, DoorDef, InteractionZoneDef } from '../RoomManager'
@@ -23,8 +24,9 @@ const D: TileType = 3
 
 // ── Collision grid ──────────────────────────────────────────────────────────
 // Layout: cozy hideout with stations along the walls, open floor in the center.
-// Back wall (row 1): bulletin board (cols 2-3), terminal screen (cols 6-7), jukebox (cols 10-11)
-// Left wall: bookshelf (col 1, rows 5-6 backing)
+// Back wall (row 1): bulletin board (cols 2-3), terminal screen (cols 5-6),
+// jukebox (cols 8-9)
+// Left wall: bookshelf + minesweeper patch (cols 1-2 backing)
 // Right wall: two game cabinets (cols 9-10 backing, row 5 interaction)
 // prettier-ignore
 const collisionGrid: TileType[][] = [
@@ -44,12 +46,16 @@ const collisionGrid: TileType[][] = [
 // ── Interaction tiles ───────────────────────────────────────────────────────
 // Back wall stations: interact from row 2
 collisionGrid[2][3]  = I  // bulletin board
-collisionGrid[2][6]  = I  // debug terminal (left half)
-collisionGrid[2][7]  = I  // debug terminal (right half)
-collisionGrid[2][9] = I  // jukebox
+collisionGrid[2][2]  = I  // bulletin board (left tile)
+collisionGrid[2][5]  = I  // debug terminal (left half)
+collisionGrid[2][6]  = I  // debug terminal (right half)
+collisionGrid[2][9]  = I  // jukebox
+collisionGrid[2][8]  = I  // jukebox (left tile)
 
 // Side wall stations: interact from row 5
 collisionGrid[5][1]  = I  // bookshelf
+collisionGrid[4][2]  = W  // minesweeper wall backing
+collisionGrid[5][2]  = I  // minesweeper patch
 collisionGrid[5][9]  = I  // tic-tac-toe cabinet
 collisionGrid[5][10] = I  // arcade cabinet (snake game)
 
@@ -60,10 +66,11 @@ export interface SecretStation {
   label: string
   col: number
   row: number
+  labelOffsetX?: number
   /** Wall tiles that form the station's visual prop (backing) */
   propTiles: Array<{ col: number; row: number }>
   color: string
-  icon: 'terminal' | 'bookshelf' | 'arcade' | 'bulletin' | 'jukebox'
+  icon: 'terminal' | 'bookshelf' | 'arcade' | 'bulletin' | 'jukebox' | 'sand'
 }
 
 export const secretStations: SecretStation[] = [
@@ -71,6 +78,7 @@ export const secretStations: SecretStation[] = [
     id: 'debug-terminal',
     label: 'TERMINAL',
     col: 6, row: 2,   // left interaction tile
+    labelOffsetX: -16,
     propTiles: [{ col: 5, row: 1 }, { col: 6, row: 1 }],
     color: '#00ff41',
     icon: 'terminal',
@@ -78,7 +86,7 @@ export const secretStations: SecretStation[] = [
   {
     id: 'debug-terminal',
     label: '',          // only one label for the pair
-    col: 6, row: 2,    // right interaction tile
+    col: 5, row: 2,
     propTiles: [],
     color: '#00ff41',
     icon: 'terminal',
@@ -87,15 +95,33 @@ export const secretStations: SecretStation[] = [
     id: 'bulletin-board',
     label: 'NOTICES',
     col: 3, row: 2,
+    labelOffsetX: -16,
     propTiles: [{ col: 2, row: 1 }, { col: 3, row: 1 }],
+    color: '#d4a030',
+    icon: 'bulletin',
+  },
+  {
+    id: 'bulletin-board',
+    label: '',
+    col: 2, row: 2,
+    propTiles: [],
     color: '#d4a030',
     icon: 'bulletin',
   },
   {
     id: 'jukebox',
     label: 'JUKEBOX',
-    col: 10, row: 2,
+    col: 9, row: 2,
+    labelOffsetX: -16,
     propTiles: [{ col: 8, row: 1 }, { col: 9, row: 1 }],
+    color: '#e060a0',
+    icon: 'jukebox',
+  },
+  {
+    id: 'jukebox',
+    label: '',
+    col: 8, row: 2,
+    propTiles: [],
     color: '#e060a0',
     icon: 'jukebox',
   },
@@ -106,6 +132,14 @@ export const secretStations: SecretStation[] = [
     propTiles: [{ col: 1, row: 4 }],
     color: '#8B4513',
     icon: 'bookshelf',
+  },
+  {
+    id: 'scorpion-sweep',
+    label: 'SWEEP',
+    col: 2, row: 5,
+    propTiles: [{ col: 2, row: 4 }],
+    color: '#ddb76c',
+    icon: 'sand',
   },
   {
     id: 'tictactoe-table',
@@ -164,9 +198,12 @@ const doors: DoorDef[] = [
 const interactionZones: InteractionZoneDef[] = [
   { col: 5,  row: 2, id: 'debug-terminal',   payload: 'terminal' },
   { col: 6,  row: 2, id: 'debug-terminal',   payload: 'terminal' },
+  { col: 2,  row: 2, id: 'bulletin-board',   payload: 'bulletin' },
   { col: 3,  row: 2, id: 'bulletin-board',    payload: 'bulletin' },
-  { col: 9, row: 2, id: 'jukebox',           payload: 'jukebox' },
+  { col: 8,  row: 2, id: 'jukebox',          payload: 'jukebox' },
+  { col: 9,  row: 2, id: 'jukebox',          payload: 'jukebox' },
   { col: 1,  row: 5, id: 'bookshelf',         payload: 'bookshelf' },
+  { col: 2,  row: 5, id: 'scorpion-sweep',    payload: 'minesweeper' },
   { col: 9,  row: 5, id: 'tictactoe-table',   payload: 'tictactoe' },
   { col: 10, row: 5, id: 'arcade-cabinet',    payload: 'snake-game' },
 ]

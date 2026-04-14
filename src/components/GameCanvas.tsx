@@ -15,6 +15,9 @@ import DebugTerminal from './DebugTerminal'
 import BookshelfPanel from './BookshelfPanel'
 import SnakeGame from './SnakeGame'
 import TicTacToe from './TicTacToe'
+import Minesweeper from './Minesweeper'
+import Leaderboard from './Leaderboard'
+import GuestBook from './GuestBook'
 import MobileControls from './MobileControls'
 import MapOverlay from './MapOverlay'
 import ResumePrompt from './ResumePrompt'
@@ -22,10 +25,12 @@ import WelcomeScreen, { shouldShowWelcome } from './WelcomeScreen'
 import ExperiencePhotoPanel from './ExperiencePhotoPanel'
 import { primeSnakeRunSession } from '../lib/snakeRunSession'
 import { projects } from '../data/projects'
-import { personalInfo } from '../data/personalInfo'
 import { experiences } from '../data/experience'
 import { skills } from '../data/skills'
 import { bulletinNotices } from '../data/bulletinNotices'
+import { mummyDialogueTree } from '../data/dialogueTree'
+import { WORKSHOP_IDS, workshopStationById } from '../data/buildersWorkshop'
+import { GUEST_BOOK_INTERACTION_ID } from '../lib/guestbook'
 import { towerPaintingOverlayByInteractionId } from '../game/maps/experienceTower'
 
 const OVERWORLD_MUSIC_VOLUME = 0.15
@@ -539,7 +544,8 @@ export default function GameCanvas() {
     if (id === 'npc-aboutme') {
       overlay = (
         <DialogueBox
-          pages={personalInfo.bio}
+          tree={mummyDialogueTree}
+          startId="root"
           onComplete={closeTextOverlay}
           onTypingProgress={handleDialogueTypingProgress}
         />
@@ -575,6 +581,17 @@ export default function GameCanvas() {
           />
         )
       }
+    } else if (WORKSHOP_IDS.has(id)) {
+      const station = workshopStationById[id]
+      if (station) {
+        overlay = (
+          <DialogueBox
+            pages={station.pages}
+            onComplete={closeTextOverlay}
+            onTypingProgress={handleDialogueTypingProgress}
+          />
+        )
+      }
     } else if (id === 'contact-portal') {
       overlay = <ContactPanel onClose={clearInteraction} />
     } else if (id === 'debug-terminal') {
@@ -585,6 +602,12 @@ export default function GameCanvas() {
       overlay = <SnakeGame onClose={clearInteraction} />
     } else if (id === 'tictactoe-table') {
       overlay = <TicTacToe onClose={clearInteraction} />
+    } else if (id === 'scorpion-sweep') {
+      overlay = <Minesweeper onClose={clearInteraction} />
+    } else if (id === 'hall-of-records') {
+      overlay = <Leaderboard onClose={clearInteraction} />
+    } else if (payload === GUEST_BOOK_INTERACTION_ID || id === GUEST_BOOK_INTERACTION_ID) {
+      overlay = <GuestBook onClose={clearInteraction} />
     } else if (id === 'bulletin-board') {
       const notice = bulletinNotices[Math.floor(Math.random() * bulletinNotices.length)]
       overlay = <DialogueBox pages={[notice]} onComplete={closeTextOverlay} onTypingProgress={handleDialogueTypingProgress} />
@@ -674,7 +697,7 @@ export default function GameCanvas() {
         mode={
           interaction?.id === 'arcade-cabinet'
             ? 'snake'
-            : interaction?.id === 'tictactoe-table'
+            : interaction?.id === 'tictactoe-table' || interaction?.id === 'scorpion-sweep'
               ? 'none'
               : 'game'
         }

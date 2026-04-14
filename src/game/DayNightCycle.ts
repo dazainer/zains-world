@@ -5,13 +5,14 @@ interface OverlayPhase {
   a: number
 }
 
-const DEFAULT_CYCLE_DURATION_MS = 10 * 60 * 1000
+const DEFAULT_CYCLE_DURATION_MS = Math.round((10 * 60 * 1000) / 12)
+const SPEED_MULTIPLIERS = [1, 10, 30, 120] as const
 
 const PHASES: OverlayPhase[] = [
   { r: 255, g: 200, b: 100, a: 0.05 }, // dawn
   { r: 0, g: 0, b: 0, a: 0 },          // day
   { r: 255, g: 120, b: 50, a: 0.1 },   // dusk
-  { r: 30, g: 30, b: 80, a: 0.15 },    // night
+  { r: 8, g: 12, b: 28, a: 0.42 },     // night
 ]
 
 function lerp(start: number, end: number, t: number) {
@@ -21,6 +22,7 @@ function lerp(start: number, end: number, t: number) {
 export class DayNightCycle {
   private readonly cycleDurationMs: number
   private readonly startTimeMs: number
+  private speedIndex = 0
 
   constructor(cycleDurationMs = DEFAULT_CYCLE_DURATION_MS) {
     this.cycleDurationMs = cycleDurationMs
@@ -29,7 +31,7 @@ export class DayNightCycle {
   }
 
   getOverlayColor(nowMs = performance.now()): string {
-    const elapsedMs = Math.max(0, nowMs - this.startTimeMs)
+    const elapsedMs = Math.max(0, nowMs - this.startTimeMs) * this.getSpeedMultiplier()
     const normalizedCycle = (elapsedMs % this.cycleDurationMs) / this.cycleDurationMs
     const segmentFloat = normalizedCycle * PHASES.length
     const segmentIndex = Math.floor(segmentFloat) % PHASES.length
@@ -47,5 +49,18 @@ export class DayNightCycle {
     const a = lerp(current.a, next.a, easedT)
 
     return `rgba(${r}, ${g}, ${b}, ${a.toFixed(3)})`
+  }
+
+  cycleSpeedMultiplier(): number {
+    this.speedIndex = (this.speedIndex + 1) % SPEED_MULTIPLIERS.length
+    return this.getSpeedMultiplier()
+  }
+
+  getSpeedMultiplier(): number {
+    return SPEED_MULTIPLIERS[this.speedIndex]
+  }
+
+  getSpeedLabel(): string {
+    return `DAY/NIGHT x${this.getSpeedMultiplier()}`
   }
 }

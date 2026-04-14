@@ -37,7 +37,7 @@ import { skillsForgeRoom } from './maps/skillsForge'
 import { experienceTower1Room, experienceTower2Room, experienceTower3Room, towerGalleryData } from './maps/experienceTower'
 import { contactPortalRoom, portalTiles, contactStations } from './maps/contactPortal'
 import { secretRoomData, secretStations, isSecretPropTile } from './maps/secretRoom'
-import { pyramidLoreRoom, skillPedestals, categoryLabels } from './maps/pyramidLore'
+import { pyramidLoreRoom, skillPedestals, categoryLabels, workshopPlaques } from './maps/pyramidLore'
 
 /** A single static (non-animated) world-space sprite drawn each frame. */
 interface StaticSprite {
@@ -47,6 +47,7 @@ interface StaticSprite {
   worldY: number
   renderW: number
   renderH: number
+  flipX?: boolean
   label?: string
   occlusionStartY?: number
   renderLayer?: 'default' | 'shrubbery'
@@ -65,6 +66,25 @@ interface OverworldChestSprite {
   elapsed: number
   targetOpen: boolean
   glowTime: number
+}
+
+interface CreatureSpeechBubble {
+  text: string
+  worldX: number
+  worldY: number
+  ttl: number
+  fill: string
+  border: string
+}
+
+interface CamelSpitParticle {
+  x: number
+  y: number
+  vx: number
+  vy: number
+  ttl: number
+  size: number
+  color: string
 }
 
 // ── Transition state machine ────────────────────────────────────────────────
@@ -161,6 +181,10 @@ export class GameEngine {
   private showDebugOverlay = false
   private overworldLayerMode = 0
   private dayNightCycle: DayNightCycle
+  private creatureSpeechBubbles: CreatureSpeechBubble[] = []
+  private camelSpitParticles: CamelSpitParticle[] = []
+  private camelInteractCooldowns = new Map<string, number>()
+  private snakeHissCooldowns = new Map<string, number>()
 
   private getViewportSize(room: RoomData = this.currentRoom) {
     if (room.isInterior) {
@@ -239,13 +263,14 @@ export class GameEngine {
       }
     }
 
-    const toStaticSprite = (entry: { sheetKey: OverworldSheetKey; frame: Frame; worldX: number; worldY: number; renderW: number; renderH: number; label?: string; occlusionStartY?: number; renderLayer?: 'default' | 'shrubbery' }): StaticSprite => ({
+    const toStaticSprite = (entry: { sheetKey: OverworldSheetKey; frame: Frame; worldX: number; worldY: number; renderW: number; renderH: number; flipX?: boolean; label?: string; occlusionStartY?: number; renderLayer?: 'default' | 'shrubbery' }): StaticSprite => ({
       sheet: resolveOverworldSheet(entry.sheetKey),
       frame: entry.frame,
       worldX: entry.worldX,
       worldY: entry.worldY,
       renderW: entry.renderW,
       renderH: entry.renderH,
+      flipX: entry.flipX,
       label: entry.label,
       occlusionStartY: entry.occlusionStartY,
       renderLayer: entry.renderLayer,
@@ -256,7 +281,9 @@ export class GameEngine {
 
     this.overworldAmbients = overworldAmbientDefs.map((entry, index) => {
       const ambient = new AmbientSprite({
+        id: entry.id,
         type: entry.type,
+        facing: entry.facing,
         x: entry.worldX,
         y: entry.worldY,
         renderW: entry.renderW ?? 32,
@@ -307,6 +334,7 @@ export class GameEngine {
       .filter((entry) => entry.sheetKey !== 'chest')
       .map((entry, index) => {
       const npc = new AmbientSprite({
+        id: entry.id,
         type: 'npc',
         x: entry.worldX,
         y: entry.worldY,
@@ -445,6 +473,9 @@ export class GameEngine {
     if (this.currentRoom.id === 'overworld' && this.input.consumeOverworldLayerCycle()) {
       this.overworldLayerMode = (this.overworldLayerMode + 1) % 3
     }
+    if (false && import.meta.env.DEV && this.input.consumeDayNightSpeedToggle()) {
+      this.dayNightCycle.cycleSpeedMultiplier()
+    }
 
     // Always tick ambient animations
     for (const a of this.ambients) a.update(dt)
@@ -452,6 +483,7 @@ export class GameEngine {
       for (const a of this.overworldAmbients) a.update(dt)
       for (const n of this.npcSprites) n.update(dt)
       this.updateResumeChest(dt)
+      this.tickOverworldCreatureEffects(dt)
     }
 
     // Handle active transition
@@ -507,8 +539,17 @@ export class GameEngine {
       this.lastPromptState = onZone
       this.callbacks.onShowInteractionPrompt(onZone)
     }
-    if (activeInteraction && this.input.consumeInteract()) {
+    const interactPressed = this.input.consumeInteract()
+    if (activeInteraction && interactPressed) {
       this.callbacks.onInteraction(activeInteraction.id, activeInteraction.payload)
+      return
+    }
+
+    if (this.currentRoom.id === 'overworld') {
+      this.tryTriggerSnakeHiss()
+      if (!activeInteraction && interactPressed) {
+        this.tryTriggerCamelSpit()
+      }
     }
   }
 
@@ -608,6 +649,10 @@ export class GameEngine {
     this.player.y = spawnY
     this.player.direction = direction
     this.player.isMoving = false
+    this.creatureSpeechBubbles = []
+    this.camelSpitParticles = []
+    this.camelInteractCooldowns.clear()
+    this.snakeHissCooldowns.clear()
 
     // Swap ambient sprites
     this.ambients = room.buildAmbients?.() ?? []
@@ -655,6 +700,8 @@ export class GameEngine {
 
       ctx.fillStyle = this.dayNightCycle.getOverlayColor()
       ctx.fillRect(0, 0, NATIVE_W, NATIVE_H)
+      this.renderCreatureSpeechBubblesOnMain()
+
     }
 
     // Transition fade overlay
@@ -721,6 +768,18 @@ export class GameEngine {
       }
     }
 
+    const drawStaticSprite = (sprite: StaticSprite, dx: number, dy: number) => {
+      if (sprite.flipX) {
+        ctx.save()
+        ctx.translate(dx + sprite.renderW, dy)
+        ctx.scale(-1, 1)
+        sprite.sheet.draw(ctx, sprite.frame, 0, 0, sprite.renderW, sprite.renderH)
+        ctx.restore()
+        return
+      }
+      sprite.sheet.draw(ctx, sprite.frame, dx, dy, sprite.renderW, sprite.renderH)
+    }
+
     // Cropped landmark / building sprites
     if (showStructures) {
       for (const s of this.overworldStructures) {
@@ -728,7 +787,7 @@ export class GameEngine {
         const dx = s.worldX - cx
         const dy = s.worldY - cy
         if (dx + s.renderW < 0 || dx > viewW || dy + s.renderH < 0 || dy > viewH) continue
-        pushSortable(getSpriteSortY(s), () => s.sheet.draw(ctx, s.frame, dx, dy, s.renderW, s.renderH))
+        pushSortable(getSpriteSortY(s), () => drawStaticSprite(s, dx, dy))
       }
     }
 
@@ -741,13 +800,13 @@ export class GameEngine {
         const dy = s.worldY - cy
         if (dx + s.renderW < 0 || dx > viewW || dy + s.renderH < 0 || dy > viewH) continue
         if (s.renderLayer === 'shrubbery') {
-          shrubberyDraws.push(() => s.sheet.draw(ctx, s.frame, dx, dy, s.renderW, s.renderH))
+          shrubberyDraws.push(() => drawStaticSprite(s, dx, dy))
           continue
         }
         if (s.occlusionStartY === undefined) {
-          s.sheet.draw(ctx, s.frame, dx, dy, s.renderW, s.renderH)
+          drawStaticSprite(s, dx, dy)
         } else {
-          pushSortable(getSpriteSortY(s), () => s.sheet.draw(ctx, s.frame, dx, dy, s.renderW, s.renderH))
+          pushSortable(getSpriteSortY(s), () => drawStaticSprite(s, dx, dy))
         }
       }
     }
@@ -782,6 +841,183 @@ export class GameEngine {
     for (const draw of shrubberyDraws) draw()
     this.player.render(ctx, cx, cy)
     for (const s of postPlayerSortables) s.draw()
+    this.renderOverworldCreatureEffects(cx, cy)
+  }
+
+  private tickOverworldCreatureEffects(dt: number) {
+    const tickCooldowns = (cooldowns: Map<string, number>) => {
+      for (const [key, timeLeft] of cooldowns.entries()) {
+        const next = timeLeft - dt
+        if (next <= 0) {
+          cooldowns.delete(key)
+        } else {
+          cooldowns.set(key, next)
+        }
+      }
+    }
+
+    tickCooldowns(this.camelInteractCooldowns)
+    tickCooldowns(this.snakeHissCooldowns)
+
+    this.creatureSpeechBubbles = this.creatureSpeechBubbles
+      .map((bubble) => ({ ...bubble, ttl: bubble.ttl - dt }))
+      .filter((bubble) => bubble.ttl > 0)
+
+    this.camelSpitParticles = this.camelSpitParticles
+      .map((particle) => ({
+        ...particle,
+        x: particle.x + particle.vx * dt,
+        y: particle.y + particle.vy * dt,
+        vy: particle.vy + 150 * dt,
+        ttl: particle.ttl - dt,
+      }))
+      .filter((particle) => particle.ttl > 0)
+  }
+
+  private tryTriggerCamelSpit() {
+    const camel = this.findNearestAmbient('camel', 58)
+    if (!camel || this.camelInteractCooldowns.has(camel.id)) return
+
+    const mouthOffsetX = camel.facing === 'left' ? 8 : camel.width - 8
+    const originX = camel.x + mouthOffsetX
+    const originY = camel.y + camel.height * 0.42
+    const dx = this.player.x - originX
+    const dy = this.player.y - originY
+    const length = Math.hypot(dx, dy) || 1
+    const dirX = dx / length
+    const dirY = dy / length
+
+    const particleCount = 12
+    for (let i = 0; i < particleCount; i++) {
+      const speed = 44 + Math.random() * 34
+      this.camelSpitParticles.push({
+        x: originX + (Math.random() * 4 - 2),
+        y: originY + (Math.random() * 4 - 2),
+        vx: dirX * speed + (Math.random() * 18 - 9),
+        vy: dirY * speed - 12 + (Math.random() * 16 - 8),
+        ttl: 0.35 + Math.random() * 0.3,
+        size: Math.random() > 0.55 ? 3 : 2,
+        color: Math.random() > 0.4 ? '#d8f07a' : '#b8df63',
+      })
+    }
+
+    this.creatureSpeechBubbles.push({
+      text: 'PTOO!',
+      worldX: camel.centerX,
+      worldY: camel.y - 6,
+      ttl: 0.85,
+      fill: 'rgba(40, 28, 10, 0.92)',
+      border: '#d8f07a',
+    })
+
+    this.playAmbientSfx('/assets/sfx/spitcamel.wav', 0.16)
+    this.camelInteractCooldowns.set(camel.id, 2.6)
+  }
+
+  private tryTriggerSnakeHiss() {
+    const snake = this.overworldAmbients.find((ambient) => ambient.id === 'snake-west-border')
+    if (!snake || this.snakeHissCooldowns.has(snake.id)) return
+
+    const distance = Math.hypot(this.player.x - snake.centerX, this.player.y - snake.centerY)
+    if (distance > 68) return
+
+    const hisses = ['HSSS', 'SSSS', 'HISSS']
+    this.creatureSpeechBubbles.push({
+      text: hisses[Math.floor(Math.random() * hisses.length)],
+      worldX: snake.centerX,
+      worldY: snake.y - 8,
+      ttl: 1.1,
+      fill: 'rgba(26, 16, 8, 0.94)',
+      border: '#d28d53',
+    })
+
+    this.playAmbientSfx('/assets/sfx/hisssnake.wav', 0.13)
+    this.snakeHissCooldowns.set(snake.id, 3.8)
+  }
+
+  private findNearestAmbient(type: 'camel' | 'snake', maxDistance: number) {
+    let nearest: AmbientSprite | null = null
+    let nearestDistance = maxDistance
+
+    for (const ambient of this.overworldAmbients) {
+      if (ambient.type !== type) continue
+      const distance = Math.hypot(this.player.x - ambient.centerX, this.player.y - ambient.centerY)
+      if (distance <= nearestDistance) {
+        nearest = ambient
+        nearestDistance = distance
+      }
+    }
+
+    return nearest
+  }
+
+  private renderOverworldCreatureEffects(cx: number, cy: number) {
+    const { ctx } = this
+
+    if (this.camelSpitParticles.length > 0) {
+      ctx.save()
+      for (const particle of this.camelSpitParticles) {
+        const alpha = Math.max(0, Math.min(1, particle.ttl / 0.65))
+        ctx.globalAlpha = alpha
+        ctx.fillStyle = particle.color
+        ctx.fillRect(
+          Math.round(particle.x - cx),
+          Math.round(particle.y - cy),
+          particle.size,
+          particle.size,
+        )
+      }
+      ctx.restore()
+    }
+  }
+
+  private renderCreatureSpeechBubblesOnMain() {
+    if (this.currentRoom.id !== 'overworld' || this.creatureSpeechBubbles.length === 0) return
+
+    const { ctx } = this
+    const cx = Math.round(this.camera.x)
+    const cy = Math.round(this.camera.y)
+    const scaleX = NATIVE_W / OVERWORLD_VIEW_W
+    const scaleY = NATIVE_H / OVERWORLD_VIEW_H
+
+    ctx.save()
+    ctx.font = 'bold 10px monospace'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+
+    for (const bubble of this.creatureSpeechBubbles) {
+      const screenX = Math.round((bubble.worldX - cx) * scaleX)
+      const screenY = Math.round((bubble.worldY - cy) * scaleY)
+      const bubbleWidth = Math.max(42, bubble.text.length * 7 + 14)
+      const bubbleHeight = 18
+      const left = Math.round(screenX - bubbleWidth / 2)
+      const top = Math.round(screenY - bubbleHeight)
+
+      ctx.fillStyle = bubble.fill
+      ctx.fillRect(left, top, bubbleWidth, bubbleHeight)
+      ctx.strokeStyle = bubble.border
+      ctx.strokeRect(left + 0.5, top + 0.5, bubbleWidth - 1, bubbleHeight - 1)
+      ctx.beginPath()
+      ctx.moveTo(screenX, top + bubbleHeight + 4)
+      ctx.lineTo(screenX - 4, top + bubbleHeight - 1)
+      ctx.lineTo(screenX + 4, top + bubbleHeight - 1)
+      ctx.closePath()
+      ctx.fill()
+      ctx.stroke()
+
+      ctx.fillStyle = '#000'
+      ctx.fillText(bubble.text, screenX + 1, top + bubbleHeight / 2 + 1)
+      ctx.fillStyle = '#f7dfab'
+      ctx.fillText(bubble.text, screenX, top + bubbleHeight / 2)
+    }
+
+    ctx.restore()
+  }
+
+  private playAmbientSfx(src: string, volume: number) {
+    const audio = new Audio(src)
+    audio.volume = volume
+    audio.play().catch(() => {})
   }
 
   // ── Interior render (canvas-drawn walls/floors + sprites) ─────────────
@@ -1023,6 +1259,23 @@ export class GameEngine {
                 ctx.fillRect(dx + 10, dy + 22, 4, 3)
                 ctx.fillStyle = '#4040e0'
                 ctx.fillRect(dx + 17, dy + 22, 4, 3)
+              } else if (station.icon === 'sand') {
+                // Suspicious sand patch: wall inset with loose sand and tracks.
+                ctx.fillStyle = '#2a1e14'
+                ctx.fillRect(dx, dy, ts, ts)
+                ctx.fillStyle = '#8e6b3a'
+                ctx.fillRect(dx + 4, dy + 6, ts - 8, ts - 10)
+                ctx.fillStyle = '#b78949'
+                ctx.fillRect(dx + 6, dy + 8, ts - 12, ts - 14)
+                ctx.fillStyle = '#6f532d'
+                ctx.fillRect(dx + 8, dy + 10, 4, 2)
+                ctx.fillRect(dx + 18, dy + 13, 3, 2)
+                ctx.fillRect(dx + 13, dy + 18, 3, 2)
+                ctx.fillStyle = '#402010'
+                ctx.fillRect(dx + 11, dy + 12, 2, 2)
+                ctx.fillRect(dx + 15, dy + 16, 2, 2)
+                ctx.fillStyle = '#d1b170'
+                ctx.fillRect(dx + 20, dy + 20, 4, 3)
               }
             } else {
               // Regular wall tile with room-specific palette
@@ -1273,6 +1526,34 @@ export class GameEngine {
         ctx.fillText(ped.name, px + ts / 2, py + 24)
       }
 
+      for (const plaque of workshopPlaques) {
+        const px = Math.floor(plaque.col * ts - cx)
+        const py = Math.floor(plaque.row * ts - cy)
+        const plaqueX = px + 4
+        const plaqueY = py + 6
+        const plaqueW = ts - 8
+        const plaqueH = 16
+        const glow = plaque.placement === 'near-door' ? '#f0d494' : '#c8a850'
+
+        ctx.globalAlpha = 0.16
+        ctx.fillStyle = glow
+        ctx.fillRect(plaqueX - 2, plaqueY - 2, plaqueW + 4, plaqueH + 4)
+
+        ctx.globalAlpha = 1
+        ctx.fillStyle = '#4f3820'
+        ctx.fillRect(plaqueX, plaqueY, plaqueW, plaqueH)
+        ctx.strokeStyle = glow
+        ctx.strokeRect(plaqueX + 0.5, plaqueY + 0.5, plaqueW - 1, plaqueH - 1)
+
+        ctx.font = 'bold 7px monospace'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
+        ctx.fillText(plaque.label, px + ts / 2 + 1, plaqueY + plaqueH / 2 + 1)
+        ctx.fillStyle = '#f5e6c8'
+        ctx.fillText(plaque.label, px + ts / 2, plaqueY + plaqueH / 2)
+      }
+
       // Draw category labels on the walls
       ctx.font = 'bold 9px monospace'
       ctx.textBaseline = 'middle'
@@ -1423,7 +1704,7 @@ export class GameEngine {
       ctx.textBaseline = 'top'
       for (const station of secretStations) {
         if (!station.label) continue
-        const lx = Math.floor(station.col * ts - cx) + ts / 2
+        const lx = Math.floor(station.col * ts - cx) + ts / 2 + (station.labelOffsetX ?? 0)
         const ly = Math.floor(station.row * ts - cy) + 24
         // Shadow
         ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'

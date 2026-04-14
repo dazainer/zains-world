@@ -54,6 +54,7 @@ const ROOM_MARKER_SOURCE_BY_ROOM_ID: Record<string, string> = {
 
 const DESERT_TILESET_PATH = '/assets/tiles/desert/DESERT TILESET 32x32.png'
 const DESERT_TILES_PER_ROW = 19
+const PLAYER_SPRITE_PATH = '/assets/sprites/Player.png'
 
 const MAP_REGION_LABELS: MapRegionLabel[] = [
   { id: 'necropolis', text: 'Necropolis', worldX: 8.5 * TILE_SIZE, worldY: 2.2 * TILE_SIZE, kind: 'major' },
@@ -374,20 +375,22 @@ export default function MapOverlay({ engineRef, onClose }: Props) {
               </div>
               <div
                 style={{
-                  ...styles.playerMarker,
+                  ...styles.playerMarkerGlow,
                   opacity: markerBright ? 1 : 0.72,
                   boxShadow: markerBright
-                    ? '0 0 0 4px rgba(255,255,255,0.16), 0 0 22px rgba(255,58,58,0.65)'
-                    : '0 0 0 4px rgba(255,255,255,0.1), 0 0 12px rgba(255,58,58,0.36)',
+                    ? '0 0 0 4px rgba(255, 226, 153, 0.14), 0 0 24px rgba(236, 193, 86, 0.72)'
+                    : '0 0 0 3px rgba(255, 226, 153, 0.08), 0 0 14px rgba(236, 193, 86, 0.4)',
                 }}
-              />
+              >
+                <div style={styles.playerMarkerFace} />
+              </div>
             </div>
           )}
         </div>
 
         <div style={styles.legendRow}>
           <span style={styles.legendChip}>Water canal border</span>
-          <span style={styles.legendChip}>Red marker = you</span>
+          <span style={styles.legendChip}>Golden face marker = you</span>
         </div>
 
         <div style={styles.hint}>Press M or Esc to close</div>
@@ -493,18 +496,35 @@ const styles: Record<string, CSSProperties> = {
   playerYou: {
     fontFamily: "'Press Start 2P', monospace",
     fontSize: '0.45rem',
-    color: '#ff4b4b',
+    color: '#f3d88b',
     textShadow: '0 1px 0 rgba(0,0,0,0.55)',
     transition: 'opacity 220ms ease',
   },
-  playerMarker: {
-    width: 32,
-    height: 32,
-    borderRadius: '50%',
-    background: 'radial-gradient(circle at 35% 35%, #ffd2d2 0%, #ff6b6b 32%, #ff2d2d 70%, #920f0f 100%)',
-    border: '3px solid rgba(255,255,255,0.9)',
+  playerMarkerGlow: {
+    width: 40,
+    height: 34,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+    background: 'radial-gradient(circle at 50% 50%, rgba(255, 225, 130, 0.28) 0%, rgba(255, 199, 83, 0.12) 55%, rgba(255, 199, 83, 0) 100%)',
+    border: '2px solid rgba(255, 236, 187, 0.72)',
     pointerEvents: 'none',
     transition: 'opacity 220ms ease, box-shadow 220ms ease',
+  },
+  playerMarkerFace: {
+    width: 39,
+    height: 22,
+    borderRadius: 8,
+    backgroundImage: `url(${PLAYER_SPRITE_PATH})`,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: '0 0',
+    backgroundSize: '192px 256px',
+    imageRendering: 'pixelated',
+    border: '2px solid rgba(248, 226, 170, 0.9)',
+    boxSizing: 'border-box',
+    backgroundColor: 'rgba(37, 22, 8, 0.92)',
+    pointerEvents: 'none',
   },
   legendRow: {
     display: 'flex',
