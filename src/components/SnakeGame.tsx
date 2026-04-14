@@ -19,6 +19,12 @@ import {
   type SnakeTurnEvent,
 } from '../lib/snakeAntiCheat'
 import { takeSnakeRunSession } from '../lib/snakeRunSession'
+import {
+  qualifies as lbQualifiesLocal,
+  addEntry as lbAddEntry,
+  getPlayerName,
+  setPlayerName as lbSetPlayerName,
+} from '../lib/leaderboard'
 
 interface Props {
   onClose: () => void
@@ -92,6 +98,13 @@ export default function SnakeGame({ onClose }: Props) {
   const [runLoading, setRunLoading] = useState(true)
   const [runError, setRunError] = useState<string | null>(null)
   const [showRunLoadingFallback, setShowRunLoadingFallback] = useState(false)
+
+  // Local leaderboard state
+  const [localLbPending, setLocalLbPending]         = useState(false)
+  const [localLbPendingScore, setLocalLbPendingScore] = useState(0)
+  const [localLbNameInput, setLocalLbNameInput]     = useState('')
+  const [localLbNameError, setLocalLbNameError]     = useState<string | null>(null)
+  const [localLbSaved, setLocalLbSaved]             = useState(false)
 
   const snake = useRef<Pos[]>(createInitialSnake())
   const food = useRef<Pos | null>(null)
@@ -247,6 +260,11 @@ export default function SnakeGame({ onClose }: Props) {
     setSubmitted(false)
     setSubmitError(null)
     setUsername('')
+    setLocalLbPending(false)
+    setLocalLbPendingScore(0)
+    setLocalLbNameInput('')
+    setLocalLbNameError(null)
+    setLocalLbSaved(false)
 
     try {
       const session = await takeSnakeRunSession(forceFresh)
@@ -312,12 +330,31 @@ export default function SnakeGame({ onClose }: Props) {
         return
       }
       setSubmitted(true)
+      // Piggyback local leaderboard save
+      lbAddEntry('snake', trimmed, finalScoreRef.current, null)
+      lbSetPlayerName(trimmed)
+      setLocalLbSaved(true)
+      setLocalLbPending(false)
       await fetchLeaderboard()
     } catch {
       setSubmitError('Unable to submit score')
     } finally {
       setSubmitting(false)
     }
+  }
+
+  // ---------- local leaderboard save ----------
+
+  function handleLocalLbSave(e: React.FormEvent) {
+    e.preventDefault()
+    const validation = lbSetPlayerName(localLbNameInput)
+    if (!validation.ok) {
+      setLocalLbNameError(validation.error)
+      return
+    }
+    lbAddEntry('snake', validation.name, localLbPendingScore, null)
+    setLocalLbSaved(true)
+    setLocalLbPending(false)
   }
 
   // ---------- restart ----------
@@ -444,6 +481,18 @@ export default function SnakeGame({ onClose }: Props) {
       }
       setGameOver(true)
       if (rafId.current) cancelAnimationFrame(rafId.current)
+
+      // Local leaderboard
+      if (lbQualifiesLocal('snake', finalScore)) {
+        const stored = getPlayerName()
+        if (stored) {
+          lbAddEntry('snake', stored, finalScore, null)
+          setLocalLbSaved(true)
+        } else {
+          setLocalLbPendingScore(finalScore)
+          setLocalLbPending(true)
+        }
+      }
     }
 
     const loop = (ts: number) => {
@@ -678,6 +727,49 @@ export default function SnakeGame({ onClose }: Props) {
               {/* Post-submit confirmation */}
               {submitted && (
                 <p style={styles.successText}>Score submitted!</p>
+              )}
+
+              {/* Local leaderboard prompt (shown only when not qualifying for remote) */}
+              {localLbPending && !localLbSaved && !qualifies && (
+                <div style={styles.localLbSection}>
+                  <p style={styles.localLbLabel}>Save to local records?</p>
+                  <form
+                    onSubmit={handleLocalLbSave}
+                    style={{
+                      ...styles.localLbForm,
+                      flexDirection: mobileInputColumn ? 'column' : 'row',
+                      width: mobileInputColumn ? '100%' : undefined,
+                    }}
+                  >
+                    <input
+                      type="text"
+                      value={localLbNameInput}
+                      onChange={e => { setLocalLbNameInput(e.target.value); setLocalLbNameError(null) }}
+                      placeholder="Your name"
+                      maxLength={16}
+                      autoFocus
+                      style={{
+                        ...styles.localLbInput,
+                        width: mobileInputColumn ? '100%' : styles.localLbInput.width,
+                        maxWidth: mobileInputColumn ? '13rem' : undefined,
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      style={{
+                        ...styles.localLbSaveBtn,
+                        width: mobileInputColumn ? '100%' : undefined,
+                        maxWidth: mobileInputColumn ? '13rem' : undefined,
+                      }}
+                    >
+                      Save
+                    </button>
+                  </form>
+                  {localLbNameError && <p style={styles.errorText}>{localLbNameError}</p>}
+                </div>
+              )}
+              {localLbSaved && !submitted && (
+                <p style={styles.localLbSavedMsg}>✓ Saved to local records</p>
               )}
 
               <div
@@ -1022,6 +1114,56 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '0.5rem',
     padding: '0.5rem 0.6rem',
     margin: 0,
+    textAlign: 'center',
+  },
+  // Local leaderboard
+  localLbSection: {
+    marginTop: '0.35rem',
+    padding: '0.5rem 0.6rem',
+    background: 'rgba(0,255,65,0.04)',
+    border: '1px solid rgba(0,255,65,0.2)',
+    width: '100%',
+  },
+  localLbLabel: {
+    margin: '0 0 0.35rem',
+    color: 'rgba(0,255,65,0.7)',
+    fontFamily: "'Press Start 2P', monospace",
+    fontSize: '0.4rem',
+    textAlign: 'center',
+  },
+  localLbForm: {
+    display: 'flex',
+    gap: '0.35rem',
+    alignItems: 'center',
+  },
+  localLbInput: {
+    flex: 1,
+    background: '#0d1117',
+    border: '1px solid rgba(0,255,65,0.35)',
+    color: '#f0f0f0',
+    fontFamily: 'system-ui, sans-serif',
+    fontSize: '0.85rem',
+    padding: '0.3rem 0.4rem',
+    outline: 'none',
+    minWidth: 0,
+    width: '10rem',
+  },
+  localLbSaveBtn: {
+    background: '#00ff41',
+    color: '#0d1117',
+    border: 'none',
+    fontFamily: "'Press Start 2P', monospace",
+    fontSize: '0.38rem',
+    padding: '0.3rem 0.55rem',
+    cursor: 'pointer',
+    flexShrink: 0,
+    whiteSpace: 'nowrap',
+  },
+  localLbSavedMsg: {
+    margin: '0.25rem 0',
+    color: '#00ff41',
+    fontFamily: "'Press Start 2P', monospace",
+    fontSize: '0.42rem',
     textAlign: 'center',
   },
 }

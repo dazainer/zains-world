@@ -27,6 +27,13 @@ import {
   type TTTStats,
 } from '../lib/tictactoe'
 
+import {
+  qualifies as qualifiesLocal,
+  addEntry,
+  getPlayerName,
+  setPlayerName,
+} from '../lib/leaderboard'
+
 // ── Props ────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -87,6 +94,13 @@ export default function TicTacToe({ onClose, onViewLeaderboard }: Props) {
   const [stats, setStats]             = useState<TTTStats>(() => loadStats('medium'))
   const [commentary, setCommentary]   = useState('')
 
+  // Local leaderboard state
+  const [lbPending, setLbPending]           = useState(false)
+  const [lbPendingScore, setLbPendingScore] = useState(0)
+  const [lbNameInput, setLbNameInput]       = useState('')
+  const [lbNameError, setLbNameError]       = useState<string | null>(null)
+  const [lbSaved, setLbSaved]               = useState(false)
+
   // SFX refs (created once)
   const sfxMove = useRef<HTMLAudioElement | null>(null)
   const sfxWin  = useRef<HTMLAudioElement | null>(null)
@@ -124,6 +138,11 @@ export default function TicTacToe({ onClose, onViewLeaderboard }: Props) {
     setSelectedCell(4)
     setMummyThinking(false)
     setCommentary('')
+    setLbPending(false)
+    setLbPendingScore(0)
+    setLbNameInput('')
+    setLbNameError(null)
+    setLbSaved(false)
     setScreen('playing')
   }, [])
 
@@ -140,8 +159,22 @@ export default function TicTacToe({ onClose, onViewLeaderboard }: Props) {
     setMummyThinking(false)
     setScreen('result')
 
-    if (r === 'X') playSfx(sfxWin.current)
-    else if (r === 'O') playSfx(sfxLose.current)
+    if (r === 'X') {
+      playSfx(sfxWin.current)
+      const streak = newStats.currentWinStreak
+      if (qualifiesLocal('tictactoe', streak)) {
+        const stored = getPlayerName()
+        if (stored) {
+          addEntry('tictactoe', stored, streak, diff)
+          setLbSaved(true)
+        } else {
+          setLbPendingScore(streak)
+          setLbPending(true)
+        }
+      }
+    } else if (r === 'O') {
+      playSfx(sfxLose.current)
+    }
   }, [])
 
   // ── Player move ───────────────────────────────────────────────────────────
@@ -279,6 +312,19 @@ export default function TicTacToe({ onClose, onViewLeaderboard }: Props) {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [screen, difficulty, selectedCell, placePlayerMove, startGame, initBoard, onClose])
+
+  // ── Local leaderboard save ────────────────────────────────────────────────
+
+  function handleLbSave() {
+    const validation = setPlayerName(lbNameInput)
+    if (!validation.ok) {
+      setLbNameError(validation.error)
+      return
+    }
+    addEntry('tictactoe', validation.name, lbPendingScore, difficulty)
+    setLbSaved(true)
+    setLbPending(false)
+  }
 
   // ── Render helpers ────────────────────────────────────────────────────────
 
@@ -454,6 +500,31 @@ export default function TicTacToe({ onClose, onViewLeaderboard }: Props) {
             <span style={{ ...s.statItem, color: '#ffd700' }}>best: {stats.bestWinStreak}</span>
           )}
         </div>
+
+        {/* Local leaderboard prompt */}
+        {lbPending && !lbSaved && (
+          <div style={s.lbSection}>
+            <p style={s.lbLabel}>Save to Hall of Records?</p>
+            <div style={s.lbInputRow}>
+              <input
+                type="text"
+                value={lbNameInput}
+                onChange={e => { setLbNameInput(e.target.value); setLbNameError(null) }}
+                placeholder="Your name"
+                maxLength={16}
+                autoFocus
+                style={s.lbInput}
+              />
+              <button type="button" style={s.lbSaveBtn} onClick={handleLbSave}>
+                SAVE
+              </button>
+            </div>
+            {lbNameError && <p style={s.lbError}>{lbNameError}</p>}
+          </div>
+        )}
+        {lbSaved && (
+          <p style={s.lbSavedMsg}>✓ Saved to Hall of Records</p>
+        )}
 
         <div style={s.btnRow}>
           <button type="button" style={s.primaryBtn} onClick={initBoard}>
@@ -807,5 +878,62 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: '0.36rem',
     textAlign: 'center',
     lineHeight: 1.6,
+  },
+
+  // ── Local leaderboard ─────────────────────────────────────────────────────
+
+  lbSection: {
+    width: '100%',
+    background: 'rgba(200,168,80,0.05)',
+    border: `1px solid rgba(200,168,80,0.22)`,
+    padding: '0.6rem',
+    marginTop: '0.35rem',
+  },
+  lbLabel: {
+    margin: '0 0 0.4rem',
+    fontFamily: FONT,
+    fontSize: '0.4rem',
+    color: 'rgba(200,168,80,0.85)',
+    textAlign: 'center',
+  },
+  lbInputRow: {
+    display: 'flex',
+    gap: '0.4rem',
+    width: '100%',
+  },
+  lbInput: {
+    flex: 1,
+    background: '#0d1117',
+    border: `1px solid rgba(200,168,80,0.4)`,
+    color: '#f5e6c8',
+    fontFamily: 'system-ui, sans-serif',
+    fontSize: '0.8rem',
+    padding: '0.35rem 0.5rem',
+    outline: 'none',
+    minWidth: 0,
+  },
+  lbSaveBtn: {
+    background: MUMMY_COLOR,
+    color: BG,
+    border: 'none',
+    fontFamily: FONT,
+    fontSize: '0.4rem',
+    padding: '0.35rem 0.65rem',
+    cursor: 'pointer',
+    flexShrink: 0,
+  },
+  lbError: {
+    margin: '0.3rem 0 0',
+    color: '#f44747',
+    fontFamily: FONT,
+    fontSize: '0.38rem',
+    textAlign: 'center',
+  },
+  lbSavedMsg: {
+    margin: '0.3rem 0',
+    color: PLAYER_COLOR,
+    fontFamily: FONT,
+    fontSize: '0.42rem',
+    textAlign: 'center',
   },
 }

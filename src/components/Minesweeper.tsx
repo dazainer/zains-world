@@ -5,6 +5,11 @@
  * Three difficulties. First click is always safe. Flood-fill on empty cells.
  * Timer starts on first click. Best times persisted in localStorage per
  * difficulty.
+ *
+ * Left-click  → reveal cell
+ * Right-click → flag / unflag
+ * R           → restart with same difficulty
+ * Escape      → close
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -28,40 +33,58 @@ import {
   type MinesweeperStats,
 } from '../lib/minesweeper'
 
+import {
+  qualifies as qualifiesLocal,
+  addEntry,
+  getPlayerName,
+  setPlayerName,
+} from '../lib/leaderboard'
+
+// ── Props ─────────────────────────────────────────────────────────────────────
+
 interface Props {
   onClose: () => void
   onViewLeaderboard?: () => void
 }
 
+// ── SFX helpers ───────────────────────────────────────────────────────────────
+
 function makeAudio(src: string, vol: number): HTMLAudioElement {
-  const audio = new Audio(src)
-  audio.volume = vol
-  audio.preload = 'auto'
-  return audio
+  const a = new Audio(src)
+  a.volume = vol
+  a.preload = 'auto'
+  return a
 }
 
 function playSfx(audio: HTMLAudioElement | null) {
   if (!audio) return
   const clone = audio.cloneNode() as HTMLAudioElement
   clone.volume = audio.volume
-  void clone.play().catch(() => {})
+  clone.play().catch(() => {})
 }
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+
 const DIFFICULTY_LABELS: Record<Difficulty, string> = {
-  easy: 'EASY',
+  easy:   'EASY',
   medium: 'MEDIUM',
-  hard: 'HARD',
+  hard:   'HARD',
 }
 
 const DIFFICULTY_DESCS: Record<Difficulty, string> = {
-  easy: '8×8 · 10 scorpions',
+  easy:   '8×8 · 10 scorpions',
   medium: '12×12 · 25 scorpions',
-  hard: '16×16 · 50 scorpions',
+  hard:   '16×16 · 50 scorpions',
 }
 
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
+  // ── Screen state ──────────────────────────────────────────────────────────
   const [screen, setScreen] = useState<'difficulty' | 'game'>('difficulty')
   const [difficulty, setDifficulty] = useState<Difficulty>('medium')
+
+  // ── Game state ────────────────────────────────────────────────────────────
   const [board, setBoard] = useState<Board>(() =>
     createEmptyBoard(DIFF_CONFIG.medium.rows, DIFF_CONFIG.medium.cols),
   )
@@ -71,32 +94,42 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
   const [stats, setStats] = useState<MinesweeperStats>(() => loadStats('medium'))
   const [newBest, setNewBest] = useState(false)
 
-  const sfxReveal = useRef<HTMLAudioElement | null>(null)
-  const sfxWin = useRef<HTMLAudioElement | null>(null)
-  const sfxLose = useRef<HTMLAudioElement | null>(null)
-  const timerRef = useRef<number | null>(null)
+  // Local leaderboard state
+  const [lbPending, setLbPending]     = useState(false)
+  const [lbNameInput, setLbNameInput] = useState('')
+  const [lbNameError, setLbNameError] = useState<string | null>(null)
+  const [lbSaved, setLbSaved]         = useState(false)
 
+  // ── Refs ──────────────────────────────────────────────────────────────────
+  const sfxReveal = useRef<HTMLAudioElement | null>(null)
+  const sfxWin    = useRef<HTMLAudioElement | null>(null)
+  const sfxLose   = useRef<HTMLAudioElement | null>(null)
+  const timerRef  = useRef<number | null>(null)
+
+  // ── SFX setup ─────────────────────────────────────────────────────────────
   useEffect(() => {
     sfxReveal.current = makeAudio('/assets/sfx/interact_default.wav', 0.08)
-    sfxWin.current = makeAudio('/assets/sfx/snake_hs.wav', 0.35)
-    sfxLose.current = makeAudio('/assets/sfx/snake_lose.wav', 0.24)
+    sfxWin.current    = makeAudio('/assets/sfx/snake_hs.wav', 0.35)
+    sfxLose.current   = makeAudio('/assets/sfx/snake_lose.wav', 0.24)
     return () => {
       sfxReveal.current = null
-      sfxWin.current = null
-      sfxLose.current = null
+      sfxWin.current    = null
+      sfxLose.current   = null
     }
   }, [])
 
+  // ── Timer ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (phase === 'playing') {
       timerRef.current = window.setInterval(() => {
-        setElapsed((t) => t + 1)
+        setElapsed(t => t + 1)
       }, 1000)
-    } else if (timerRef.current !== null) {
-      window.clearInterval(timerRef.current)
-      timerRef.current = null
+    } else {
+      if (timerRef.current !== null) {
+        window.clearInterval(timerRef.current)
+        timerRef.current = null
+      }
     }
-
     return () => {
       if (timerRef.current !== null) {
         window.clearInterval(timerRef.current)
@@ -105,6 +138,7 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
     }
   }, [phase])
 
+  // ── Initialise / restart ──────────────────────────────────────────────────
   const initGame = useCallback((diff: Difficulty) => {
     const cfg = DIFF_CONFIG[diff]
     setDifficulty(diff)
@@ -114,6 +148,10 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
     setHitCell(null)
     setNewBest(false)
     setStats(loadStats(diff))
+    setLbPending(false)
+    setLbNameInput('')
+    setLbNameError(null)
+    setLbSaved(false)
     setScreen('game')
   }, [])
 
@@ -121,6 +159,7 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
     initGame(difficulty)
   }, [difficulty, initGame])
 
+  // ── Left click — reveal ───────────────────────────────────────────────────
   const handleReveal = useCallback((row: number, col: number) => {
     if (phase === 'won' || phase === 'lost') return
     const cell = board[row][col]
@@ -129,6 +168,7 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
     let nextBoard = board
     let nextPhase = phase
 
+    // First click — place scorpions, then reveal
     if (phase === 'idle') {
       const cfg = DIFF_CONFIG[difficulty]
       nextBoard = placeScorpions(board, row, col, cfg.scorpions)
@@ -136,67 +176,88 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
       setPhase('playing')
     }
 
+    // Hit a scorpion
     if (nextBoard[row][col].scorpion) {
       const exposed = exposeScorpions(nextBoard, row, col)
       setBoard(exposed)
       setHitCell([row, col])
       setPhase('lost')
-      setStats(recordLoss(difficulty))
+      const newStats = recordLoss(difficulty)
+      setStats(newStats)
       playSfx(sfxLose.current)
       return
     }
 
     playSfx(sfxReveal.current)
+
     const revealed = revealFrom(nextBoard, row, col)
     setBoard(revealed)
 
     if (checkWin(revealed)) {
       setPhase('won')
-      const newStats = recordWin(difficulty, elapsed)
-      setNewBest(newStats.bestTime === elapsed || newStats.wins === 1)
+      const newStats = recordWin(difficulty, elapsed + (nextPhase === 'playing' ? 0 : 0))
+      const wasNewBest = newStats.bestTime === elapsed || newStats.wins === 1
       setStats(newStats)
+      setNewBest(wasNewBest)
       playSfx(sfxWin.current)
-      return
-    }
 
-    if (nextPhase === 'playing' && phase === 'idle') {
-      setPhase('playing')
+      // Local leaderboard
+      if (qualifiesLocal('minesweeper', elapsed)) {
+        const stored = getPlayerName()
+        if (stored) {
+          addEntry('minesweeper', stored, elapsed, `${DIFFICULTY_LABELS[difficulty]} · ${formatTime(elapsed)}`)
+          setLbSaved(true)
+        } else {
+          setLbPending(true)
+        }
+      }
     }
   }, [board, difficulty, elapsed, phase])
 
+  // ── Right click — flag ────────────────────────────────────────────────────
   const handleFlag = useCallback((e: React.MouseEvent, row: number, col: number) => {
     e.preventDefault()
     if (phase === 'won' || phase === 'lost') return
-    if (board[row][col].revealed) return
-    setBoard((current) => toggleFlag(current, row, col))
+    const cell = board[row][col]
+    if (cell.revealed) return
+    setBoard(b => toggleFlag(b, row, col))
   }, [board, phase])
 
+  // ── Keyboard ──────────────────────────────────────────────────────────────
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.repeat) return
-      if (e.code === 'Escape') {
-        e.preventDefault()
-        onClose()
-        return
-      }
-      if (e.code === 'KeyR' && screen === 'game') {
-        e.preventDefault()
-        restartGame()
-      }
+      if (e.code === 'Escape') { e.preventDefault(); onClose(); return }
+      if (e.code === 'KeyR' && screen === 'game') { e.preventDefault(); restartGame(); return }
     }
-
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [onClose, restartGame, screen])
 
-  const cfg = DIFF_CONFIG[difficulty]
-  const minesLeft = cfg.scorpions - countFlags(board)
-  const timerText = formatTime(elapsed)
+  // ── Local leaderboard save ────────────────────────────────────────────────
+
+  function handleLbSave() {
+    const validation = setPlayerName(lbNameInput)
+    if (!validation.ok) {
+      setLbNameError(validation.error)
+      return
+    }
+    addEntry('minesweeper', validation.name, elapsed, `${DIFFICULTY_LABELS[difficulty]} · ${formatTime(elapsed)}`)
+    setLbSaved(true)
+    setLbPending(false)
+  }
+
+  // ── Derived ───────────────────────────────────────────────────────────────
+  const cfg        = DIFF_CONFIG[difficulty]
+  const minesLeft  = cfg.scorpions - countFlags(board)
+  const timerText  = formatTime(elapsed)
   const isGameOver = phase === 'won' || phase === 'lost'
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   if (screen === 'difficulty') {
     return (
-      <div style={s.backdrop} onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={s.backdrop} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
         <div style={s.panel}>
           <div style={s.header}>
             <span style={s.headerText}>DESERT MINESWEEPER</span>
@@ -207,7 +268,7 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
             <p style={s.diffTitle}>SELECT DIFFICULTY</p>
 
             <div style={s.diffList}>
-              {(['easy', 'medium', 'hard'] as Difficulty[]).map((d) => (
+              {(['easy', 'medium', 'hard'] as Difficulty[]).map(d => (
                 <button
                   key={d}
                   type="button"
@@ -232,11 +293,14 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
     )
   }
 
+  // ── Game screen ───────────────────────────────────────────────────────────
+
   const faceEmoji = phase === 'won' ? '😎' : phase === 'lost' ? '💀' : '🔍'
 
   return (
-    <div style={s.backdrop} onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+    <div style={s.backdrop} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div style={{ ...s.panel, width: 'fit-content' }}>
+        {/* Header bar */}
         <div style={s.header}>
           <span style={s.headerText}>
             {DIFFICULTY_LABELS[difficulty]} · 🦂 {minesLeft}
@@ -245,7 +309,9 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
           <button type="button" style={s.closeBtn} onClick={onClose} aria-label="Close">✕</button>
         </div>
 
+        {/* Board + result overlay wrapper */}
         <div style={{ ...s.boardWrap, position: 'relative' }}>
+          {/* Face / restart button row */}
           <div style={s.controlRow}>
             <button type="button" style={s.faceBtn} onClick={restartGame} title="Restart (R)">
               {faceEmoji}
@@ -255,19 +321,20 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
             </button>
           </div>
 
+          {/* Grid */}
           <div
             style={{
               ...s.grid,
               gridTemplateColumns: `repeat(${cfg.cols}, ${cfg.cellPx}px)`,
               gridTemplateRows: `repeat(${cfg.rows}, ${cfg.cellPx}px)`,
             }}
-            onContextMenu={(e) => e.preventDefault()}
+            // Prevent browser context menu over the whole grid
+            onContextMenu={e => e.preventDefault()}
           >
             {board.map((row, r) =>
               row.map((cell, c) => {
                 const isHit = hitCell?.[0] === r && hitCell?.[1] === c
                 const canClick = !cell.revealed && !cell.flagged && phase !== 'won' && phase !== 'lost'
-
                 return (
                   <div
                     key={`${r}-${c}`}
@@ -277,8 +344,8 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
                       cell.flagged
                         ? `Flagged ${r},${c}`
                         : cell.revealed
-                          ? `${cell.scorpion ? 'Scorpion' : cell.adjacent || 'Empty'} at ${r},${c}`
-                          : `Hidden ${r},${c}`
+                        ? `${cell.scorpion ? 'Scorpion' : cell.adjacent || 'Empty'} at ${r},${c}`
+                        : `Hidden ${r},${c}`
                     }
                     style={{
                       ...s.cell,
@@ -286,7 +353,9 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
                       height: cfg.cellPx,
                       fontSize: cfg.cellPx <= 18 ? '9px' : cfg.cellPx <= 24 ? '11px' : '13px',
                       ...(cell.revealed
-                        ? (cell.scorpion ? (isHit ? s.cellHit : s.cellScorpion) : s.cellRevealed)
+                        ? (cell.scorpion
+                          ? (isHit ? s.cellHit : s.cellScorpion)
+                          : s.cellRevealed)
                         : s.cellHidden),
                       cursor: canClick ? 'pointer' : 'default',
                       color: cell.revealed && !cell.scorpion && cell.adjacent > 0
@@ -294,10 +363,12 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
                         : undefined,
                     }}
                     onClick={() => handleReveal(r, c)}
-                    onContextMenu={(e) => handleFlag(e, r, c)}
+                    onContextMenu={e => handleFlag(e, r, c)}
                   >
                     {cell.revealed
-                      ? (cell.scorpion ? (isHit ? '💥' : '🦂') : (cell.adjacent > 0 ? cell.adjacent : ''))
+                      ? (cell.scorpion
+                        ? (isHit ? '💥' : '🦂')
+                        : (cell.adjacent > 0 ? cell.adjacent : ''))
                       : (cell.flagged ? '🚩' : '')}
                   </div>
                 )
@@ -305,6 +376,7 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
             )}
           </div>
 
+          {/* Stats footer */}
           <div style={s.statsRow}>
             <span style={s.statChip}>
               W<span style={{ color: ACCENT }}> {stats.wins}</span>
@@ -319,14 +391,13 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
             )}
           </div>
 
+          {/* Result overlay */}
           {isGameOver && (
             <div style={s.resultOverlay}>
-              <p
-                style={{
-                  ...s.resultTitle,
-                  color: phase === 'won' ? ACCENT : '#f44747',
-                }}
-              >
+              <p style={{
+                ...s.resultTitle,
+                color: phase === 'won' ? ACCENT : '#f44747',
+              }}>
                 {phase === 'won' ? 'CLEARED!' : 'SCORPION!'}
               </p>
 
@@ -341,6 +412,31 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
 
               {phase === 'lost' && (
                 <p style={s.resultSub}>Better luck next time...</p>
+              )}
+
+              {/* Local leaderboard prompt (won only) */}
+              {phase === 'won' && lbPending && !lbSaved && (
+                <div style={s.lbSection}>
+                  <p style={s.lbLabel}>Save to Hall of Records?</p>
+                  <div style={s.lbInputRow}>
+                    <input
+                      type="text"
+                      value={lbNameInput}
+                      onChange={e => { setLbNameInput(e.target.value); setLbNameError(null) }}
+                      placeholder="Your name"
+                      maxLength={16}
+                      autoFocus
+                      style={s.lbInput}
+                    />
+                    <button type="button" style={s.lbSaveBtn} onClick={handleLbSave}>
+                      SAVE
+                    </button>
+                  </div>
+                  {lbNameError && <p style={s.lbError}>{lbNameError}</p>}
+                </div>
+              )}
+              {phase === 'won' && lbSaved && (
+                <p style={s.lbSavedMsg}>✓ Saved to Hall of Records</p>
               )}
 
               <div style={s.resultBtns}>
@@ -367,14 +463,19 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
   )
 }
 
-const BG = '#0d1117'
-const ACCENT = '#c8a850'
-const FONT = "'Press Start 2P', monospace"
+// ── Palette ───────────────────────────────────────────────────────────────────
 
-const SAND_HIDDEN = '#5C3A1A'
-const SAND_SHADE = '#3D2410'
-const SAND_OPEN = '#C4924A'
-const SAND_OPEN_BG = '#D4A85E'
+const BG           = '#0d1117'
+const ACCENT       = '#c8a850'      // gold — desert theme
+const FONT         = "'Press Start 2P', monospace"
+
+// Sand cell colours
+const SAND_HIDDEN  = '#5C3A1A'      // dark sand — unrevealed
+const SAND_SHADE   = '#3D2410'      // darker shade for hidden border
+const SAND_OPEN    = '#C4924A'      // light sand — revealed
+const SAND_OPEN_BG = '#D4A85E'      // slightly lighter for open border
+
+// ── Styles ────────────────────────────────────────────────────────────────────
 
 const s: Record<string, React.CSSProperties> = {
   backdrop: {
@@ -422,6 +523,9 @@ const s: Record<string, React.CSSProperties> = {
     padding: '0 0.2rem',
     lineHeight: 1,
   },
+
+  // ── Difficulty screen ────────────────────────────────────────────────────
+
   diffBody: {
     padding: '1.1rem 1.2rem',
     display: 'flex',
@@ -445,7 +549,7 @@ const s: Record<string, React.CSSProperties> = {
   },
   diffBtn: {
     background: 'rgba(200,168,80,0.05)',
-    border: '1px solid rgba(200,168,80,0.3)',
+    border: `1px solid rgba(200,168,80,0.3)`,
     color: ACCENT,
     cursor: 'pointer',
     padding: '0.75rem 1rem',
@@ -476,6 +580,9 @@ const s: Record<string, React.CSSProperties> = {
     color: '#ffd700',
     flexShrink: 0,
   },
+
+  // ── Game screen ──────────────────────────────────────────────────────────
+
   boardWrap: {
     display: 'flex',
     flexDirection: 'column',
@@ -493,7 +600,7 @@ const s: Record<string, React.CSSProperties> = {
   },
   faceBtn: {
     background: 'none',
-    border: '1px solid rgba(200,168,80,0.3)',
+    border: `1px solid rgba(200,168,80,0.3)`,
     cursor: 'pointer',
     fontSize: '1.1rem',
     lineHeight: 1,
@@ -502,7 +609,7 @@ const s: Record<string, React.CSSProperties> = {
   },
   changeDiffBtn: {
     background: 'none',
-    border: '1px solid rgba(200,168,80,0.25)',
+    border: `1px solid rgba(200,168,80,0.25)`,
     color: 'rgba(200,168,80,0.5)',
     cursor: 'pointer',
     fontFamily: FONT,
@@ -510,6 +617,9 @@ const s: Record<string, React.CSSProperties> = {
     padding: '0.3rem 0.5rem',
     letterSpacing: '0.03em',
   },
+
+  // ── Grid cells ───────────────────────────────────────────────────────────
+
   grid: {
     display: 'grid',
     gap: '1px',
@@ -531,7 +641,7 @@ const s: Record<string, React.CSSProperties> = {
   cellHidden: {
     background: SAND_HIDDEN,
     border: `1px solid ${SAND_SHADE}`,
-    boxShadow: 'inset 1px 1px 0 rgba(255,255,255,0.07), inset -1px -1px 0 rgba(0,0,0,0.3)',
+    boxShadow: `inset 1px 1px 0 rgba(255,255,255,0.07), inset -1px -1px 0 rgba(0,0,0,0.3)`,
   },
   cellRevealed: {
     background: SAND_OPEN,
@@ -539,14 +649,17 @@ const s: Record<string, React.CSSProperties> = {
   },
   cellScorpion: {
     background: '#3A1A1A',
-    border: '1px solid #5A2020',
+    border: `1px solid #5A2020`,
     fontSize: '1rem',
   },
   cellHit: {
     background: '#7A1A1A',
-    border: '1px solid #B03030',
+    border: `1px solid #B03030`,
     fontSize: '1rem',
   },
+
+  // ── Stats ────────────────────────────────────────────────────────────────
+
   statsRow: {
     display: 'flex',
     gap: '1rem',
@@ -559,6 +672,9 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: '0.42rem',
     color: 'rgba(200,168,80,0.55)',
   },
+
+  // ── Result overlay ────────────────────────────────────────────────────────
+
   resultOverlay: {
     position: 'absolute',
     inset: 0,
@@ -622,6 +738,9 @@ const s: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     textDecoration: 'underline',
   },
+
+  // ── Shared ────────────────────────────────────────────────────────────────
+
   hint: {
     margin: 0,
     color: 'rgba(200,168,80,0.35)',
@@ -629,8 +748,65 @@ const s: Record<string, React.CSSProperties> = {
     fontSize: '0.33rem',
     textAlign: 'center',
     padding: '0.5rem 0.8rem',
-    borderTop: '1px solid rgba(200,168,80,0.12)',
+    borderTop: `1px solid rgba(200,168,80,0.12)`,
     flexShrink: 0,
     lineHeight: 1.8,
+  },
+
+  // ── Local leaderboard ─────────────────────────────────────────────────────
+
+  lbSection: {
+    width: '100%',
+    background: 'rgba(200,168,80,0.05)',
+    border: `1px solid rgba(200,168,80,0.22)`,
+    padding: '0.55rem',
+    marginTop: '0.2rem',
+  },
+  lbLabel: {
+    margin: '0 0 0.4rem',
+    fontFamily: FONT,
+    fontSize: '0.38rem',
+    color: 'rgba(200,168,80,0.85)',
+    textAlign: 'center',
+  },
+  lbInputRow: {
+    display: 'flex',
+    gap: '0.35rem',
+    width: '100%',
+  },
+  lbInput: {
+    flex: 1,
+    background: '#0d1117',
+    border: `1px solid rgba(200,168,80,0.4)`,
+    color: '#f5e6c8',
+    fontFamily: 'system-ui, sans-serif',
+    fontSize: '0.78rem',
+    padding: '0.3rem 0.45rem',
+    outline: 'none',
+    minWidth: 0,
+  },
+  lbSaveBtn: {
+    background: ACCENT,
+    color: BG,
+    border: 'none',
+    fontFamily: FONT,
+    fontSize: '0.38rem',
+    padding: '0.3rem 0.6rem',
+    cursor: 'pointer',
+    flexShrink: 0,
+  },
+  lbError: {
+    margin: '0.3rem 0 0',
+    color: '#f44747',
+    fontFamily: FONT,
+    fontSize: '0.36rem',
+    textAlign: 'center',
+  },
+  lbSavedMsg: {
+    margin: '0.25rem 0',
+    color: '#4ec9b0',
+    fontFamily: FONT,
+    fontSize: '0.42rem',
+    textAlign: 'center',
   },
 }
