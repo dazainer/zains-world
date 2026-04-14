@@ -5,7 +5,7 @@ interface OverlayPhase {
   a: number
 }
 
-const DEFAULT_CYCLE_DURATION_MS = Math.round((10 * 60 * 1000) / 12)
+const DEFAULT_CYCLE_DURATION_MS = Math.round((10 * 60 * 1000) / 6)
 const SPEED_MULTIPLIERS = [1, 10, 30, 120] as const
 
 const PHASES: OverlayPhase[] = [
