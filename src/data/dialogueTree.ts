@@ -180,7 +180,7 @@ export const mummyDialogueTree: Record<string, DialogueNode> = {
   'mummy-game': {
     id: 'mummy-game',
     speaker: 'mummy',
-    text: "Oh, you're one of THOSE visitors. I like you already. Head to the sphinx in the southwest. If you can find the entrance, there's a whole little arcade hidden inside. Press M if you need help getting there. Try not to lose too loudly.",
+    text: "Oh, you're one of THOSE visitors. I like you already. Head to the sphinx in the northwest. If you can find the entrance, there's a whole little arcade hidden inside. Press M if you need help getting there. Try not to lose too loudly.",
     choices: [
       { label: 'Back to the start', nextId: 'root' },
     ],
