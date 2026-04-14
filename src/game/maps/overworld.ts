@@ -28,27 +28,7 @@ const DEFAULT_SPAWN = {
   y: 6 * TILE_SIZE + TILE_SIZE / 2 + SOUTH_PIXEL_OFFSET,
 }
 
-const DEV_SPHINX_SPAWN = {
-  x: 112,
-  y: 184,
-  direction: 'down' as Direction,
-}
-
-function resolveSpawnOverride() {
-  if (!import.meta.env.DEV || typeof window === 'undefined') return null
-
-  const devSpawn = new URLSearchParams(window.location.search).get('devSpawn')
-  if (devSpawn === 'sphinx') {
-    return {
-      x: DEV_SPHINX_SPAWN.x,
-      y: DEV_SPHINX_SPAWN.y,
-    }
-  }
-
-  return null
-}
-
-export const SPAWN = resolveSpawnOverride() ?? DEFAULT_SPAWN
+export const SPAWN = DEFAULT_SPAWN
 
 export type OverworldSheetKey = 'desert' | 'pyramidDoor' | 'pyramid' | 'sphinx' | 'pillar' | 'dungeonProps'
 

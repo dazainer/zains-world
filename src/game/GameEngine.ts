@@ -37,7 +37,14 @@ import { skillsForgeRoom } from './maps/skillsForge'
 import { experienceTower1Room, experienceTower2Room, experienceTower3Room, towerGalleryData } from './maps/experienceTower'
 import { contactPortalRoom, portalTiles, contactStations } from './maps/contactPortal'
 import { secretRoomData, secretStations, isSecretPropTile } from './maps/secretRoom'
-import { pyramidLoreRoom, skillPedestals, categoryLabels, workshopPlaques } from './maps/pyramidLore'
+import {
+  pyramidLoreRoom,
+  skillPedestals,
+  categoryLabels,
+  workshopPlaques,
+  pyramidWallArt,
+  pyramidFloorInlays,
+} from './maps/pyramidLore'
 
 /** A single static (non-animated) world-space sprite drawn each frame. */
 interface StaticSprite {
@@ -1466,6 +1473,95 @@ export class GameEngine {
     if (isPyramidLore) {
       ctx.save()
 
+      for (const inlay of pyramidFloorInlays) {
+        const dx = Math.floor(inlay.x - cx)
+        const dy = Math.floor(inlay.y - cy)
+
+        ctx.fillStyle = inlay.fill
+        ctx.fillRect(dx, dy, inlay.width, inlay.height)
+        ctx.strokeStyle = inlay.accent
+        ctx.strokeRect(dx + 0.5, dy + 0.5, inlay.width - 1, inlay.height - 1)
+
+        ctx.fillStyle = inlay.inner
+        ctx.fillRect(dx + 8, dy + 8, inlay.width - 16, inlay.height - 16)
+        ctx.fillStyle = inlay.accent
+        ctx.fillRect(dx + 12, dy + 12, inlay.width - 24, 2)
+        ctx.fillRect(dx + 12, dy + inlay.height - 14, inlay.width - 24, 2)
+        ctx.fillRect(dx + Math.floor(inlay.width / 2) - 1, dy + 10, 2, inlay.height - 20)
+        ctx.fillRect(dx + 10, dy + 10, 4, 4)
+        ctx.fillRect(dx + inlay.width - 14, dy + 10, 4, 4)
+        ctx.fillRect(dx + 10, dy + inlay.height - 14, 4, 4)
+        ctx.fillRect(dx + inlay.width - 14, dy + inlay.height - 14, 4, 4)
+      }
+
+      for (const panel of pyramidWallArt) {
+        const dx = Math.floor(panel.x - cx)
+        const dy = Math.floor(panel.y - cy)
+
+        ctx.fillStyle = '#3f2819'
+        ctx.fillRect(dx, dy, panel.width, panel.height)
+        ctx.strokeStyle = panel.accent
+        ctx.strokeRect(dx + 0.5, dy + 0.5, panel.width - 1, panel.height - 1)
+        ctx.fillStyle = panel.fill
+        ctx.fillRect(dx + 3, dy + 3, panel.width - 6, panel.height - 6)
+        ctx.fillStyle = panel.accent
+
+        switch (panel.motif) {
+          case 'sun': {
+            const cx0 = dx + Math.floor(panel.width / 2)
+            const cy0 = dy + Math.floor(panel.height / 2)
+            ctx.beginPath()
+            ctx.arc(cx0, cy0, 4, 0, Math.PI * 2)
+            ctx.fill()
+            ctx.fillRect(cx0 - 1, dy + 4, 2, 4)
+            ctx.fillRect(cx0 - 1, dy + panel.height - 8, 2, 4)
+            ctx.fillRect(dx + 6, cy0 - 1, 4, 2)
+            ctx.fillRect(dx + panel.width - 10, cy0 - 1, 4, 2)
+            break
+          }
+          case 'waves': {
+            for (let line = 0; line < 3; line++) {
+              const y = dy + 5 + line * 4
+              for (let x = dx + 7; x <= dx + panel.width - 10; x += 10) {
+                ctx.fillRect(x, y, 4, 1)
+                ctx.fillRect(x + 3, y + 1, 4, 1)
+              }
+            }
+            break
+          }
+          case 'lotus': {
+            const midX = dx + Math.floor(panel.width / 2)
+            for (let i = 0; i < 4; i++) {
+              const y = dy + 10 + i * 12
+              ctx.fillRect(midX - 1, y, 2, 8)
+              ctx.fillRect(midX - 6, y + 2, 4, 4)
+              ctx.fillRect(midX + 2, y + 2, 4, 4)
+            }
+            break
+          }
+          case 'stars': {
+            const stars = [
+              [dx + 6, dy + 7],
+              [dx + panel.width - 8, dy + 12],
+              [dx + 9, dy + panel.height - 10],
+              [dx + panel.width - 10, dy + panel.height - 16],
+            ]
+            for (const [sx, sy] of stars) {
+              ctx.fillRect(sx, sy - 1, 1, 3)
+              ctx.fillRect(sx - 1, sy, 3, 1)
+            }
+            ctx.strokeStyle = 'rgba(214, 184, 111, 0.55)'
+            ctx.beginPath()
+            ctx.moveTo(stars[0][0], stars[0][1])
+            ctx.lineTo(stars[1][0], stars[1][1])
+            ctx.lineTo(stars[3][0], stars[3][1])
+            ctx.stroke()
+            ctx.strokeStyle = panel.accent
+            break
+          }
+        }
+      }
+
       // Draw skill item icons on each pedestal
       for (const ped of skillPedestals) {
         const px = Math.floor(ped.col * ts - cx)
@@ -1473,8 +1569,8 @@ export class GameEngine {
 
         // Tier-colored orb/gem on the pedestal
         const orbX = px + ts / 2
-        const orbY = py + 14
-        const orbR = 5
+        const orbY = py + 12
+        const orbR = 4
 
         // Outer glow
         ctx.globalAlpha = 0.3
@@ -1514,16 +1610,33 @@ export class GameEngine {
           ctx.globalAlpha = 1.0
         }
 
-        // Skill name label below the pedestal
-        ctx.font = 'bold 8px monospace'
+        // Compact exhibit plaque under each skill keeps dense rows readable.
+        const labelColor = ped.tier === 'legendary' ? '#f1d17c'
+          : ped.tier === 'rare' ? '#a6d6ef'
+          : '#d6c3a5'
+        const plaqueHeight = ped.labelLines.length === 1 ? 10 : 15
+        const plaqueY = py + (ped.labelLines.length === 1 ? 19 : 15)
+        const plaqueX = px + 2
+        const plaqueWidth = ts - 4
+
+        ctx.fillStyle = 'rgba(33, 22, 12, 0.9)'
+        ctx.fillRect(plaqueX, plaqueY, plaqueWidth, plaqueHeight)
+        ctx.strokeStyle = ped.tier === 'legendary' ? 'rgba(241, 209, 124, 0.8)'
+          : ped.tier === 'rare' ? 'rgba(126, 187, 211, 0.8)'
+          : 'rgba(173, 146, 117, 0.8)'
+        ctx.strokeRect(plaqueX + 0.5, plaqueY + 0.5, plaqueWidth - 1, plaqueHeight - 1)
+
+        ctx.font = `600 ${ped.labelLines.length === 1 ? 6 : 5}px "Press Start 2P", monospace`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'top'
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
-        ctx.fillText(ped.name, px + ts / 2 + 1, py + 25)
-        ctx.fillStyle = ped.tier === 'legendary' ? '#c8a850'
-          : ped.tier === 'rare' ? '#80b8e0'
-          : '#a09080'
-        ctx.fillText(ped.name, px + ts / 2, py + 24)
+        const labelStartY = plaqueY + (ped.labelLines.length === 1 ? 2 : 1)
+        for (const [index, line] of ped.labelLines.entries()) {
+          const lineY = labelStartY + index * 6
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.75)'
+          ctx.fillText(line, px + ts / 2 + 1, lineY + 1)
+          ctx.fillStyle = labelColor
+          ctx.fillText(line, px + ts / 2, lineY)
+        }
       }
 
       for (const plaque of workshopPlaques) {

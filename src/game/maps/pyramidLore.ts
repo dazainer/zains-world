@@ -5,7 +5,7 @@ import type { TileType } from '../CollisionMap'
 import type { RoomData, DoorDef, InteractionZoneDef } from '../RoomManager'
 import { SpriteSheet } from '../SpriteSheet'
 import { AmbientSprite } from '../AmbientSprite'
-import { EGYPT_VASE_FRAMES, placeInteriorDeco } from '../InteriorDeco'
+import { DUNGEON_PROP_FRAMES, EGYPT_VASE_FRAMES, placeInteriorDeco } from '../InteriorDeco'
 import { OVERWORLD_RETURN_SPAWNS } from './overworld'
 import { skills, type Skill } from '../../data/skills'
 import { workshopStations } from '../../data/buildersWorkshop'
@@ -45,6 +45,23 @@ interface SkillSpot {
   id: string
   payload: string
   skill: Skill
+}
+
+const SKILL_LABEL_LINES: Record<string, string[]> = {
+  Python: ['PYTHON'],
+  C: ['C'],
+  TypeScript: ['TYPE', 'SCRIPT'],
+  JavaScript: ['JAVA', 'SCRIPT'],
+  SQL: ['SQL'],
+  'Node.js': ['NODE', 'JS'],
+  PostgreSQL: ['POST', 'GRES'],
+  FastAPI: ['FAST', 'API'],
+  React: ['REACT'],
+  Git: ['GIT'],
+  Express: ['EX', 'PRESS'],
+  'REST APIs': ['REST', 'API'],
+  'HTML/CSS': ['HTML', 'CSS'],
+  Racket: ['RACKET'],
 }
 
 const skillByName = new Map(skills.map((skill) => [skill.name, skill]))
@@ -124,6 +141,7 @@ export interface SkillPedestalDeco {
   col: number
   row: number
   name: string
+  labelLines: string[]
   tier: 'legendary' | 'rare' | 'common'
   category: string
   /** The shelf-backing wall tile (row above for north shelf, col-adjacent for side shelves) */
@@ -135,6 +153,7 @@ export const skillPedestals: SkillPedestalDeco[] = skillSpots.map(spot => ({
   col: spot.col,
   row: spot.row,
   name: spot.skill.name,
+  labelLines: SKILL_LABEL_LINES[spot.skill.name] ?? [spot.skill.name.toUpperCase()],
   tier: spot.skill.tier,
   category: spot.skill.category,
   // Shelf backing is the wall row above the interaction row
@@ -170,13 +189,54 @@ export const workshopPlaques: WorkshopPlaqueDeco[] = workshopSpots.map((spot) =>
   placement: spot.placement,
 }))
 
+export interface PyramidWallArtDeco {
+  x: number
+  y: number
+  width: number
+  height: number
+  accent: string
+  fill: string
+  motif: 'sun' | 'waves' | 'lotus' | 'stars'
+}
+
+export const pyramidWallArt: PyramidWallArtDeco[] = [
+  { x: 2 * T + 4, y: 1 * T + 5, width: 3 * T - 8, height: 18, accent: '#d5b45a', fill: '#68492c', motif: 'sun' },
+  { x: 7 * T + 4, y: 1 * T + 5, width: 3 * T - 8, height: 18, accent: '#7cb7c7', fill: '#53422e', motif: 'waves' },
+  { x: 1 * T + 7, y: 3 * T + 4, width: 18, height: 2 * T + 20, accent: '#d2764d', fill: '#5a3926', motif: 'lotus' },
+  { x: 10 * T + 7, y: 3 * T + 4, width: 18, height: 2 * T + 20, accent: '#b690d8', fill: '#4d382f', motif: 'stars' },
+]
+
+export interface PyramidFloorInlayDeco {
+  x: number
+  y: number
+  width: number
+  height: number
+  accent: string
+  fill: string
+  inner: string
+}
+
+export const pyramidFloorInlays: PyramidFloorInlayDeco[] = [
+  { x: 3 * T, y: 5 * T + 6, width: 6 * T, height: 3 * T - 6, accent: '#d9bd72', fill: 'rgba(110, 78, 38, 0.28)', inner: 'rgba(84, 124, 132, 0.28)' },
+]
+
 const spriteDecos = [
   placeInteriorDeco('top-left-bowl', 'vase', EGYPT_VASE_FRAMES.bowl, 1, 1, 18, 14, 7, 10),
   placeInteriorDeco('top-right-bowl', 'vase', EGYPT_VASE_FRAMES.bowl, 10, 1, 18, 14, 7, 10),
+  placeInteriorDeco('north-left-hanging', 'vase', EGYPT_VASE_FRAMES.hangingVase, 2, 1, 20, 22, 6, 4, 0.95),
+  placeInteriorDeco('north-right-hanging', 'vase', EGYPT_VASE_FRAMES.hangingVase, 9, 1, 20, 22, 6, 4, 0.95),
   placeInteriorDeco('west-mid-jar', 'vase', EGYPT_VASE_FRAMES.jar, 1, 7, 18, 20, 7, 8),
   placeInteriorDeco('east-mid-jar', 'vase', EGYPT_VASE_FRAMES.jar, 10, 7, 18, 20, 7, 8),
+  placeInteriorDeco('west-mid-hanging', 'vase', EGYPT_VASE_FRAMES.hangingVase, 1, 4, 20, 22, 6, 5, 0.95),
+  placeInteriorDeco('east-mid-hanging', 'vase', EGYPT_VASE_FRAMES.hangingVase, 10, 4, 20, 22, 6, 5, 0.95),
+  placeInteriorDeco('engine-orb', 'props', DUNGEON_PROP_FRAMES.goldOrb, 4, 1, 14, 14, 9, 14),
+  placeInteriorDeco('stack-gem', 'props', DUNGEON_PROP_FRAMES.blueGem, 7, 1, 14, 14, 9, 14),
+  placeInteriorDeco('archive-bottle', 'props', DUNGEON_PROP_FRAMES.bottleA, 3, 8, 12, 12, 10, 12),
+  placeInteriorDeco('archive-pot', 'props', DUNGEON_PROP_FRAMES.potB, 8, 8, 14, 14, 9, 11),
   placeInteriorDeco('bottom-left-urn', 'vase', EGYPT_VASE_FRAMES.urn, 1, 10, 20, 20, 6, 8),
   placeInteriorDeco('bottom-right-urn', 'vase', EGYPT_VASE_FRAMES.urn, 10, 10, 20, 20, 6, 8),
+  placeInteriorDeco('door-left-pot', 'props', DUNGEON_PROP_FRAMES.potA, 2, 10, 14, 14, 9, 11),
+  placeInteriorDeco('door-right-bottle', 'props', DUNGEON_PROP_FRAMES.bottleB, 9, 10, 12, 12, 10, 12),
 ]
 
 // ── Doors ───────────────────────────────────────────────────────────────────
