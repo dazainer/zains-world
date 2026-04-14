@@ -101,7 +101,7 @@ export default function TicTacToe({ onClose, onViewLeaderboard }: Props) {
   const [lbNameInput, setLbNameInput]       = useState('')
   const [lbNameError, setLbNameError]       = useState<string | null>(null)
   const [lbSaved, setLbSaved]               = useState(false)
-  const [remoteLeaderboard, setRemoteLeaderboard] = useState<RemoteLeaderboardData | null>(null)
+  const [remoteLeaderboards, setRemoteLeaderboards] = useState<Partial<Record<Difficulty, RemoteLeaderboardData>>>({})
 
   // SFX refs (created once)
   const sfxMove = useRef<HTMLAudioElement | null>(null)
@@ -116,10 +116,19 @@ export default function TicTacToe({ onClose, onViewLeaderboard }: Props) {
   }, [])
 
   useEffect(() => {
-    void fetchRemoteLeaderboard('tictactoe')
-      .then(setRemoteLeaderboard)
+    let cancelled = false
+
+    void fetchRemoteLeaderboard('tictactoe', difficulty)
+      .then((data) => {
+        if (cancelled) return
+        setRemoteLeaderboards((prev) => ({ ...prev, [difficulty]: data }))
+      })
       .catch(() => {})
-  }, [])
+
+    return () => { cancelled = true }
+  }, [difficulty])
+
+  const remoteLeaderboard = remoteLeaderboards[difficulty] ?? null
 
   const qualifiesForGlobal = useCallback((score: number, playerName?: string) => {
     if (score <= 0 || !remoteLeaderboard) return true
@@ -132,11 +141,12 @@ export default function TicTacToe({ onClose, onViewLeaderboard }: Props) {
   }, [remoteLeaderboard])
 
   const saveGlobalScore = useCallback(async (playerName: string, score: number, diff: Difficulty) => {
-    const result = await submitRemoteLeaderboardEntry('tictactoe', playerName, score, diff)
+    const result = await submitRemoteLeaderboardEntry('tictactoe', playerName, score, diff, diff)
     if (!result.keptExisting) {
       setLbSaved(true)
-      setRemoteLeaderboard(await fetchRemoteLeaderboard('tictactoe'))
     }
+    const refreshed = await fetchRemoteLeaderboard('tictactoe', diff)
+    setRemoteLeaderboards((prev) => ({ ...prev, [diff]: refreshed }))
   }, [])
 
   // ── Game state helpers ────────────────────────────────────────────────────
@@ -191,18 +201,18 @@ export default function TicTacToe({ onClose, onViewLeaderboard }: Props) {
       const stored = getPlayerIdentity()
       if (stored) {
         if (qualifiesForGlobal(streak, stored.display)) {
-          void saveGlobalScore(stored.raw, streak, diff).catch((error) => {
+          void saveGlobalScore(stored.raw, streak, diff).catch((error: unknown) => {
             setLbNameError(error instanceof Error ? error.message : 'Unable to save score')
           })
         }
       } else if (qualifiesForGlobal(streak)) {
-          setLbPendingScore(streak)
-          setLbPending(true)
+        setLbPendingScore(streak)
+        setLbPending(true)
       }
     } else if (r === 'O') {
       playSfx(sfxLose.current)
     }
-  }, [])
+  }, [qualifiesForGlobal, saveGlobalScore])
 
   // ── Player move ───────────────────────────────────────────────────────────
 

@@ -100,7 +100,7 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
   const [lbNameInput, setLbNameInput] = useState('')
   const [lbNameError, setLbNameError] = useState<string | null>(null)
   const [lbSaved, setLbSaved]         = useState(false)
-  const [remoteLeaderboard, setRemoteLeaderboard] = useState<RemoteLeaderboardData | null>(null)
+  const [remoteLeaderboards, setRemoteLeaderboards] = useState<Partial<Record<Difficulty, RemoteLeaderboardData>>>({})
 
   // ── Refs ──────────────────────────────────────────────────────────────────
   const sfxReveal = useRef<HTMLAudioElement | null>(null)
@@ -121,10 +121,19 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
   }, [])
 
   useEffect(() => {
-    void fetchRemoteLeaderboard('minesweeper')
-      .then(setRemoteLeaderboard)
+    let cancelled = false
+
+    void fetchRemoteLeaderboard('minesweeper', difficulty)
+      .then((data) => {
+        if (cancelled) return
+        setRemoteLeaderboards((prev) => ({ ...prev, [difficulty]: data }))
+      })
       .catch(() => {})
-  }, [])
+
+    return () => { cancelled = true }
+  }, [difficulty])
+
+  const remoteLeaderboard = remoteLeaderboards[difficulty] ?? null
 
   const qualifiesForGlobal = useCallback((score: number, playerName?: string) => {
     if (score <= 0 || !remoteLeaderboard) return true
@@ -137,12 +146,13 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
   }, [remoteLeaderboard])
 
   const saveGlobalScore = useCallback(async (playerName: string, score: number, metadata: string) => {
-    const result = await submitRemoteLeaderboardEntry('minesweeper', playerName, score, metadata)
+    const result = await submitRemoteLeaderboardEntry('minesweeper', playerName, score, metadata, difficulty)
     if (!result.keptExisting) {
       setLbSaved(true)
-      setRemoteLeaderboard(await fetchRemoteLeaderboard('minesweeper'))
     }
-  }, [])
+    const refreshed = await fetchRemoteLeaderboard('minesweeper', difficulty)
+    setRemoteLeaderboards((prev) => ({ ...prev, [difficulty]: refreshed }))
+  }, [difficulty])
 
   // ── Timer ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -239,7 +249,7 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
           setLbPending(true)
       }
     }
-  }, [board, difficulty, elapsed, phase])
+  }, [board, difficulty, elapsed, phase, qualifiesForGlobal, saveGlobalScore])
 
   // ── Right click — flag ────────────────────────────────────────────────────
   const handleFlag = useCallback((e: React.MouseEvent, row: number, col: number) => {

@@ -1,8 +1,8 @@
 /**
- * Leaderboard — "Hall of Records" overlay for all local mini-game scores.
+ * Leaderboard — "Hall of Records" overlay for the remote mini-game leaderboards.
  *
  * Three tabs: Snake · Tic-Tac-Toe · Minesweeper
- * Reads from localStorage via leaderboard.ts. Zero world integration required.
+ * Minesweeper and Tic-Tac-Toe can be filtered by difficulty.
  *
  * Keyboard:
  *   ← / → or Tab / Shift+Tab  — switch tabs
@@ -11,10 +11,12 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import {
+  LEADERBOARD_DIFFICULTIES,
   fetchRemoteLeaderboard,
   formatDate,
   formatScore,
   getPlayerName,
+  type LeaderboardDifficulty,
   type LeaderboardEntry,
   type LeaderboardGame,
 } from '../lib/leaderboard'
@@ -55,7 +57,7 @@ const TABS: TabDef[] = [
     emptyLine1: 'No TTT records yet.',
     emptyLine2: 'Defeat the mummy in the secret\nroom to set a streak!',
     scoreLabel: 'STREAK',
-    metaLabel:  'DIFF',
+    metaLabel:  '—',
   },
   {
     game:       'minesweeper',
@@ -64,15 +66,25 @@ const TABS: TabDef[] = [
     emptyLine1: 'No minesweeper times yet.',
     emptyLine2: 'Clear the scorpion field\nto post your best time!',
     scoreLabel: 'TIME',
-    metaLabel:  'DIFF',
+    metaLabel:  '—',
   },
 ]
+
+const DIFFICULTY_LABELS: Record<LeaderboardDifficulty, string> = {
+  easy: 'EASY',
+  medium: 'MEDIUM',
+  hard: 'HARD',
+}
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function Leaderboard({ onClose, initialTab = 'snake' }: Props) {
   const initialIndex = TABS.findIndex(t => t.game === initialTab)
   const [tabIndex, setTabIndex] = useState(initialIndex >= 0 ? initialIndex : 0)
+  const [difficultyByGame, setDifficultyByGame] = useState<Record<'tictactoe' | 'minesweeper', LeaderboardDifficulty>>({
+    tictactoe: 'medium',
+    minesweeper: 'medium',
+  })
 
   // Read entries fresh on every tab switch (localStorage may have changed)
   const [entries, setEntries] = useState<LeaderboardEntry[]>([])
@@ -81,6 +93,8 @@ export default function Leaderboard({ onClose, initialTab = 'snake' }: Props) {
   const playerName = getPlayerName()
 
   const activeTab = TABS[tabIndex]
+  const activeDifficultyGame: Exclude<LeaderboardGame, 'snake'> | null = activeTab.game === 'snake' ? null : activeTab.game
+  const activeDifficulty = activeDifficultyGame ? difficultyByGame[activeDifficultyGame] : null
 
   // Reload entries when tab changes
   useEffect(() => {
@@ -88,11 +102,11 @@ export default function Leaderboard({ onClose, initialTab = 'snake' }: Props) {
 
     setLoading(true)
     setLoadError(null)
-    void fetchRemoteLeaderboard(activeTab.game)
+    void fetchRemoteLeaderboard(activeTab.game, activeDifficulty ?? undefined)
       .then((data) => {
         if (cancelled) return
         setEntries(data.entries.map((entry) => ({
-          id: `remote-${activeTab.game}-${entry.username.toLowerCase()}`,
+          id: `remote-${activeTab.game}-${entry.difficulty ?? activeDifficulty ?? 'base'}-${entry.username.toLowerCase()}`,
           playerName: entry.username,
           game: activeTab.game,
           score: entry.score,
@@ -110,7 +124,7 @@ export default function Leaderboard({ onClose, initialTab = 'snake' }: Props) {
       })
 
     return () => { cancelled = true }
-  }, [activeTab.game])
+  }, [activeDifficulty, activeTab.game])
 
   const prevTab = useCallback(() => {
     setTabIndex(i => (i - 1 + TABS.length) % TABS.length)
@@ -191,6 +205,27 @@ export default function Leaderboard({ onClose, initialTab = 'snake' }: Props) {
           ))}
         </div>
 
+        {activeDifficultyGame && activeDifficulty && (
+          <div style={s.difficultyBar}>
+            {LEADERBOARD_DIFFICULTIES.map((difficulty) => {
+              const selected = difficultyByGame[activeDifficultyGame] === difficulty
+              return (
+                <button
+                  key={difficulty}
+                  type="button"
+                  style={{
+                    ...s.difficultyBtn,
+                    ...(selected ? s.difficultyBtnActive : s.difficultyBtnInactive),
+                  }}
+                  onClick={() => setDifficultyByGame((prev) => ({ ...prev, [activeDifficultyGame]: difficulty }))}
+                >
+                  {DIFFICULTY_LABELS[difficulty]}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
         {/* ── Content ───────────────────────────────────────────────────── */}
         <div style={s.content}>
           {loading ? (
@@ -208,7 +243,11 @@ export default function Leaderboard({ onClose, initialTab = 'snake' }: Props) {
             // ── Empty state ───────────────────────────────────────────────
             <div style={s.emptyWrap}>
               <span style={s.emptyIcon}>{activeTab.icon}</span>
-              <p style={s.emptyLine1}>{activeTab.emptyLine1}</p>
+              <p style={s.emptyLine1}>
+                {activeDifficulty
+                  ? `No ${activeTab.game === 'tictactoe' ? 'records' : 'times'} for ${DIFFICULTY_LABELS[activeDifficulty]} yet.`
+                  : activeTab.emptyLine1}
+              </p>
               <p style={s.emptyLine2}>{activeTab.emptyLine2}</p>
             </div>
           ) : (
@@ -354,6 +393,33 @@ const s: Record<string, React.CSSProperties> = {
     display: 'flex',
     borderBottom: `1px solid ${BORDER}`,
     flexShrink: 0,
+  },
+  difficultyBar: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: '0.45rem',
+    padding: '0.55rem 0.9rem',
+    borderBottom: `1px solid ${BORDER}`,
+    background: 'rgba(255,255,255,0.01)',
+    flexShrink: 0,
+  },
+  difficultyBtn: {
+    border: `1px solid ${BORDER}`,
+    background: 'none',
+    color: TEXT_DIM,
+    cursor: 'pointer',
+    fontFamily: FONT,
+    fontSize: '0.35rem',
+    padding: '0.35rem 0.55rem',
+    letterSpacing: '0.04em',
+  },
+  difficultyBtnActive: {
+    background: ACCENT_DIM,
+    borderColor: ACCENT,
+    color: ACCENT,
+  },
+  difficultyBtnInactive: {
+    color: TEXT_DIM,
   },
   tab: {
     flex: 1,

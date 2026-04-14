@@ -1,9 +1,12 @@
 export type LeaderboardGame = 'snake' | 'tictactoe' | 'minesweeper'
+export type LeaderboardDifficulty = 'easy' | 'medium' | 'hard'
 
 export interface CanonicalIdentity {
   display: string
   normalized: string
 }
+
+export const LEADERBOARD_DIFFICULTIES = ['easy', 'medium', 'hard'] as const
 
 export const USERNAME_RE = /^[A-Za-z0-9_-]{3,16}$/
 
@@ -30,6 +33,10 @@ export const OVERRIDE_CODES: Record<string, CanonicalIdentity> = {
 
 export function isOverrideCode(raw: string): boolean {
   return Object.prototype.hasOwnProperty.call(OVERRIDE_CODES, raw.trim())
+}
+
+export function isLeaderboardDifficulty(value: unknown): value is LeaderboardDifficulty {
+  return typeof value === 'string' && LEADERBOARD_DIFFICULTIES.includes(value as LeaderboardDifficulty)
 }
 
 export function canonicalizeIdentity(raw: string): CanonicalIdentity {

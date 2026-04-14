@@ -22,11 +22,13 @@ import {
   canonicalizeIdentity,
   isBetterScore,
   SORT_ORDER,
+  type LeaderboardDifficulty,
   type LeaderboardGame,
   validateLeaderboardName,
 } from './leaderboardIdentity'
 
-export type { LeaderboardGame } from './leaderboardIdentity'
+export { LEADERBOARD_DIFFICULTIES } from './leaderboardIdentity'
+export type { LeaderboardDifficulty, LeaderboardGame } from './leaderboardIdentity'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -65,22 +67,24 @@ export interface SessionPlayerIdentity {
   sessionId: string
 }
 
-export interface RemoteSnakeLeaderboardEntry {
+export interface RemoteLeaderboardEntry {
   rank: number
   username: string
   score: number
   metadata?: string | null
   timestamp?: string
+  difficulty?: LeaderboardDifficulty | null
 }
 
-export interface RemoteSnakeLeaderboardData {
+export interface RemoteLeaderboardData {
   topScore: { username: string; score: number } | null
-  entries: RemoteSnakeLeaderboardEntry[]
+  entries: RemoteLeaderboardEntry[]
   cutoffScore: number | null
+  difficulty?: LeaderboardDifficulty | null
 }
 
-export type RemoteLeaderboardEntry = RemoteSnakeLeaderboardEntry
-export type RemoteLeaderboardData = RemoteSnakeLeaderboardData
+export type RemoteSnakeLeaderboardEntry = RemoteLeaderboardEntry
+export type RemoteSnakeLeaderboardData = RemoteLeaderboardData
 
 // ── Storage keys ──────────────────────────────────────────────────────────────
 
@@ -373,15 +377,18 @@ export function validatePlayerName(
 }
 
 export function normalizeSnakeLeaderboard(data: RemoteSnakeLeaderboardData): RemoteSnakeLeaderboardData {
-  const bestByPlayer = new Map<string, RemoteSnakeLeaderboardEntry>()
+  const bestByPlayer = new Map<string, RemoteLeaderboardEntry>()
 
   for (const entry of data.entries) {
     const identity = canonicalizeIdentity(entry.username)
     const existing = bestByPlayer.get(identity.normalized)
-    const candidate: RemoteSnakeLeaderboardEntry = {
+    const candidate: RemoteLeaderboardEntry = {
       rank: entry.rank,
       username: identity.display,
       score: entry.score,
+      metadata: entry.metadata ?? null,
+      timestamp: entry.timestamp,
+      difficulty: entry.difficulty ?? null,
     }
 
     if (!existing || candidate.score > existing.score || (candidate.score === existing.score && candidate.rank < existing.rank)) {
@@ -403,17 +410,28 @@ export function normalizeSnakeLeaderboard(data: RemoteSnakeLeaderboardData): Rem
     topScore: entries.length > 0 ? { username: entries[0].username, score: entries[0].score } : null,
     entries,
     cutoffScore: entries.length >= 10 ? entries[9].score : null,
+    difficulty: data.difficulty ?? null,
   }
 }
 
-export function getRemoteLeaderboardPath(game: LeaderboardGame): string {
-  if (game === 'snake') return '/api/snake-leaderboard'
-  if (game === 'tictactoe') return '/api/tictactoe-leaderboard'
-  return '/api/minesweeper-leaderboard'
+export function getRemoteLeaderboardPath(game: LeaderboardGame, difficulty?: LeaderboardDifficulty): string {
+  const basePath = game === 'snake'
+    ? '/api/snake-leaderboard'
+    : game === 'tictactoe'
+      ? '/api/tictactoe-leaderboard'
+      : '/api/minesweeper-leaderboard'
+
+  if (game === 'snake' || !difficulty) return basePath
+
+  const params = new URLSearchParams({ difficulty })
+  return `${basePath}?${params.toString()}`
 }
 
-export async function fetchRemoteLeaderboard(game: LeaderboardGame): Promise<RemoteLeaderboardData> {
-  const res = await fetch(getRemoteLeaderboardPath(game))
+export async function fetchRemoteLeaderboard(
+  game: LeaderboardGame,
+  difficulty?: LeaderboardDifficulty,
+): Promise<RemoteLeaderboardData> {
+  const res = await fetch(getRemoteLeaderboardPath(game, difficulty))
   const text = await res.text()
   const data = text ? JSON.parse(text) as RemoteLeaderboardData | { error?: string } : { topScore: null, entries: [], cutoffScore: null }
   if (!res.ok) {
@@ -429,12 +447,13 @@ export async function submitRemoteLeaderboardEntry(
   username: string,
   score: number,
   metadata: string | null,
+  difficulty: LeaderboardDifficulty,
 ): Promise<{ keptExisting: boolean }> {
   const sessionId = getLeaderboardSessionId()
   const res = await fetch(getRemoteLeaderboardPath(game), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, score, metadata, sessionId }),
+    body: JSON.stringify({ username, score, metadata, sessionId, difficulty }),
   })
 
   const text = await res.text()
