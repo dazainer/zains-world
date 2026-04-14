@@ -5,7 +5,7 @@ import {
   canonicalizeIdentity,
   isBetterAscending,
   validateLeaderboardName,
-} from './leaderboardIdentity'
+} from './leaderboardIdentity.js'
 
 type SqlClient = ReturnType<typeof getDb>
 

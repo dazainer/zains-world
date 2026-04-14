@@ -8,7 +8,7 @@ import {
   RESERVED_USERNAMES,
   USERNAME_RE,
   validateLeaderboardName,
-} from './leaderboardIdentity'
+} from './leaderboardIdentity.js'
 
 type SqlClient = ReturnType<typeof getDb>
 
