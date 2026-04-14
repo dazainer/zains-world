@@ -162,15 +162,17 @@ export default function TicTacToe({ onClose, onViewLeaderboard }: Props) {
     if (r === 'X') {
       playSfx(sfxWin.current)
       const streak = newStats.currentWinStreak
-      if (qualifiesLocal('tictactoe', streak)) {
-        const stored = getPlayerName()
-        if (stored) {
-          addEntry('tictactoe', stored, streak, diff)
-          setLbSaved(true)
-        } else {
+      const stored = getPlayerName()
+      if (stored) {
+        if (qualifiesLocal('tictactoe', streak, stored)) {
+          const saved = addEntry('tictactoe', stored, streak, diff)
+          if (saved.status !== 'kept-existing') {
+            setLbSaved(true)
+          }
+        }
+      } else if (qualifiesLocal('tictactoe', streak)) {
           setLbPendingScore(streak)
           setLbPending(true)
-        }
       }
     } else if (r === 'O') {
       playSfx(sfxLose.current)
@@ -321,8 +323,10 @@ export default function TicTacToe({ onClose, onViewLeaderboard }: Props) {
       setLbNameError(validation.error)
       return
     }
-    addEntry('tictactoe', validation.name, lbPendingScore, difficulty)
-    setLbSaved(true)
+    const saved = addEntry('tictactoe', validation.name, lbPendingScore, difficulty)
+    if (saved.status !== 'kept-existing') {
+      setLbSaved(true)
+    }
     setLbPending(false)
   }
 

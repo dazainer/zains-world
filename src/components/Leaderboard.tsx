@@ -15,8 +15,10 @@ import {
   formatScore,
   getEntries,
   getPlayerName,
+  normalizeSnakeLeaderboard,
   type LeaderboardEntry,
   type LeaderboardGame,
+  type RemoteSnakeLeaderboardData,
 } from '../lib/leaderboard'
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -76,13 +78,55 @@ export default function Leaderboard({ onClose, initialTab = 'snake' }: Props) {
 
   // Read entries fresh on every tab switch (localStorage may have changed)
   const [entries, setEntries] = useState<LeaderboardEntry[]>([])
+  const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const playerName = getPlayerName()
 
   const activeTab = TABS[tabIndex]
 
   // Reload entries when tab changes
   useEffect(() => {
-    setEntries(getEntries(activeTab.game))
+    let cancelled = false
+
+    if (activeTab.game !== 'snake') {
+      setLoading(false)
+      setLoadError(null)
+      setEntries(getEntries(activeTab.game))
+      return () => { cancelled = true }
+    }
+
+    setLoading(true)
+    setLoadError(null)
+    void fetch('/api/snake-leaderboard')
+      .then(async (res) => {
+        const text = await res.text()
+        if (!res.ok) {
+          throw new Error(text || 'Unable to load snake leaderboard')
+        }
+        return text ? JSON.parse(text) as RemoteSnakeLeaderboardData : { topScore: null, entries: [], cutoffScore: null }
+      })
+      .then((data) => {
+        if (cancelled) return
+        const normalized = normalizeSnakeLeaderboard(data)
+        setEntries(normalized.entries.map((entry) => ({
+          id: `remote-snake-${entry.username.toLowerCase()}`,
+          playerName: entry.username,
+          game: 'snake',
+          score: entry.score,
+          metadata: null,
+          timestamp: '',
+        })))
+      })
+      .catch((error) => {
+        if (cancelled) return
+        setEntries([])
+        setLoadError(error instanceof Error ? error.message : 'Unable to load snake leaderboard')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => { cancelled = true }
   }, [activeTab.game])
 
   const prevTab = useCallback(() => {
@@ -166,7 +210,18 @@ export default function Leaderboard({ onClose, initialTab = 'snake' }: Props) {
 
         {/* ── Content ───────────────────────────────────────────────────── */}
         <div style={s.content}>
-          {entries.length === 0 ? (
+          {loading ? (
+            <div style={s.emptyWrap}>
+              <span style={s.emptyIcon}>{activeTab.icon}</span>
+              <p style={s.emptyLine1}>Loading records...</p>
+            </div>
+          ) : loadError ? (
+            <div style={s.emptyWrap}>
+              <span style={s.emptyIcon}>{activeTab.icon}</span>
+              <p style={s.emptyLine1}>Records unavailable.</p>
+              <p style={s.emptyLine2}>{loadError}</p>
+            </div>
+          ) : entries.length === 0 ? (
             // ── Empty state ───────────────────────────────────────────────
             <div style={s.emptyWrap}>
               <span style={s.emptyIcon}>{activeTab.icon}</span>

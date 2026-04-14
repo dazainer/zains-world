@@ -44,6 +44,23 @@ export interface LeaderboardEntry {
 
 export type SortOrder = 'desc' | 'asc'
 
+export interface SaveEntryResult {
+  status: 'inserted' | 'updated' | 'kept-existing'
+  entry: LeaderboardEntry
+}
+
+export interface RemoteSnakeLeaderboardEntry {
+  rank: number
+  username: string
+  score: number
+}
+
+export interface RemoteSnakeLeaderboardData {
+  topScore: { username: string; score: number } | null
+  entries: RemoteSnakeLeaderboardEntry[]
+  cutoffScore: number | null
+}
+
 // ── Storage keys ──────────────────────────────────────────────────────────────
 
 const KEY_ENTRIES    = 'lbEntries'
@@ -56,6 +73,45 @@ const SORT_ORDER: Record<LeaderboardGame, SortOrder> = {
   snake:       'desc',
   tictactoe:   'desc',
   minesweeper: 'asc',
+}
+
+const USERNAME_RE = /^[A-Za-z0-9_-]{3,16}$/
+
+const RESERVED = new Set([
+  'admin', 'administrator', 'moderator', 'mod', 'system', 'root',
+  'null', 'undefined', 'vercel', 'zain',
+])
+
+const PROFANITY = [
+  'fuck', 'shit', 'ass', 'damn', 'bitch', 'dick', 'cock', 'pussy',
+  'cunt', 'bastard', 'slut', 'whore', 'fag', 'nigger', 'nigga',
+  'retard', 'rape', 'penis', 'vagina', 'anus', 'porn', 'cum',
+  'nazi', 'hitler', 'kill', 'die',
+  'kosom', 'kossom', 'kosomak', 'kosomk', 'kosomik',
+  'khawal', 'khwl', '5awal', '5wl',
+  'metnak', 'metnaka', 'mtnak', 'mtnaka',
+  'bez', 'bezaz', 'bzaz',
+]
+
+const OVERRIDE_CODES: Record<string, { display: string; normalized: string }> = {
+  '71594250': { display: 'zain', normalized: 'zain' },
+  '48273196': { display: 'joyce', normalized: 'joyce' },
+}
+
+const CANONICAL_NAME_BY_NORMALIZED: Record<string, string> = {
+  zain: 'zain',
+  joyce: 'joyce',
+  joyceyay: 'joyce',
+  'w-joyce': 'joyce',
+  joyceagain: 'joyce',
+  joycelol: 'joyce',
+  joycead: 'joyce',
+  joyc: 'joyce',
+}
+
+const CANONICAL_DISPLAY_BY_NAME: Record<string, string> = {
+  zain: 'zain',
+  joyce: 'joyce',
 }
 
 // ── Storage helpers ───────────────────────────────────────────────────────────
@@ -80,6 +136,20 @@ function writeEntries(entries: LeaderboardEntry[]): void {
   }
 }
 
+function canonicalizeIdentity(raw: string): { display: string; normalized: string } {
+  const trimmed = raw.trim()
+  const override = OVERRIDE_CODES[trimmed]
+  if (override) return override
+
+  const normalizedInput = trimmed.toLowerCase()
+  const canonical = CANONICAL_NAME_BY_NORMALIZED[normalizedInput] ?? normalizedInput
+
+  return {
+    display: CANONICAL_DISPLAY_BY_NAME[canonical] ?? trimmed,
+    normalized: canonical,
+  }
+}
+
 // ── Sorting ───────────────────────────────────────────────────────────────────
 
 /**
@@ -99,6 +169,52 @@ function sortForGame(entries: LeaderboardEntry[], game: LeaderboardGame): Leader
   })
 }
 
+function isBetterScore(game: LeaderboardGame, candidate: number, current: number): boolean {
+  return SORT_ORDER[game] === 'desc' ? candidate > current : candidate < current
+}
+
+function isBetterEntry(game: LeaderboardGame, candidate: LeaderboardEntry, current: LeaderboardEntry): boolean {
+  if (candidate.score !== current.score) {
+    return isBetterScore(game, candidate.score, current.score)
+  }
+  return new Date(candidate.timestamp).getTime() < new Date(current.timestamp).getTime()
+}
+
+function normalizeStoredEntry(entry: LeaderboardEntry): LeaderboardEntry {
+  const identity = canonicalizeIdentity(entry.playerName)
+  return {
+    ...entry,
+    playerName: identity.display,
+  }
+}
+
+function entryPlayerKey(entry: LeaderboardEntry): string {
+  return canonicalizeIdentity(entry.playerName).normalized
+}
+
+function normalizeEntries(entries: LeaderboardEntry[]): LeaderboardEntry[] {
+  const bestByPlayer = new Map<string, LeaderboardEntry>()
+
+  for (const raw of entries) {
+    const entry = normalizeStoredEntry(raw)
+    const key = `${entry.game}:${entryPlayerKey(entry)}`
+    const existing = bestByPlayer.get(key)
+
+    if (!existing || isBetterEntry(entry.game, entry, existing)) {
+      bestByPlayer.set(key, entry)
+    }
+  }
+
+  const normalized = [...bestByPlayer.values()]
+  const trimmed: LeaderboardEntry[] = []
+
+  for (const game of Object.keys(SORT_ORDER) as LeaderboardGame[]) {
+    trimmed.push(...sortForGame(normalized.filter((entry) => entry.game === game), game).slice(0, TOP_N))
+  }
+
+  return trimmed
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
@@ -106,7 +222,7 @@ function sortForGame(entries: LeaderboardEntry[], game: LeaderboardGame): Leader
  * Returns an empty array if there are no entries.
  */
 export function getEntries(game: LeaderboardGame): LeaderboardEntry[] {
-  const all = readEntries().filter(e => e.game === game)
+  const all = normalizeEntries(readEntries()).filter(e => e.game === game)
   return sortForGame(all, game).slice(0, TOP_N)
 }
 
@@ -121,33 +237,50 @@ export function addEntry(
   playerName: string,
   score: number,
   metadata: string | null = null,
-): LeaderboardEntry {
-  const entry: LeaderboardEntry = {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    playerName: playerName.trim(),
+): SaveEntryResult {
+  const identity = canonicalizeIdentity(playerName)
+  const all = normalizeEntries(readEntries())
+  const existing = all.find((entry) => entry.game === game && entryPlayerKey(entry) === identity.normalized)
+
+  if (existing && !isBetterScore(game, score, existing.score)) {
+    return { status: 'kept-existing', entry: existing }
+  }
+
+  const nextEntry: LeaderboardEntry = {
+    id: existing?.id ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    playerName: identity.display,
     game,
     score,
     metadata,
     timestamp: new Date().toISOString(),
   }
 
-  const all = readEntries()
-  const forGame = sortForGame([...all.filter(e => e.game === game), entry], game)
-  const trimmed = forGame.slice(0, TOP_N)
+  const merged = normalizeEntries([
+    ...all.filter((entry) => !(entry.game === game && entryPlayerKey(entry) === identity.normalized)),
+    nextEntry,
+  ])
 
-  // Rebuild: keep all entries from OTHER games + the trimmed set for this game
-  const others = all.filter(e => e.game !== game)
-  writeEntries([...others, ...trimmed])
+  writeEntries(merged)
 
-  return entry
+  return {
+    status: existing ? 'updated' : 'inserted',
+    entry: merged.find((entry) => entry.game === game && entryPlayerKey(entry) === identity.normalized) ?? nextEntry,
+  }
 }
 
 /**
  * Check whether a given score qualifies for the top-N list for a game.
  * Useful for deciding whether to prompt the player to enter their name.
  */
-export function qualifies(game: LeaderboardGame, score: number): boolean {
+export function qualifies(game: LeaderboardGame, score: number, playerName?: string): boolean {
   const existing = getEntries(game)
+  if (playerName) {
+    const identity = canonicalizeIdentity(playerName)
+    const ownExisting = existing.find((entry) => entryPlayerKey(entry) === identity.normalized)
+    if (ownExisting) {
+      return isBetterScore(game, score, ownExisting.score)
+    }
+  }
   if (existing.length < TOP_N) return true
 
   const order = SORT_ORDER[game]
@@ -161,7 +294,8 @@ export function qualifies(game: LeaderboardGame, score: number): boolean {
 export function getPlayerName(): string | null {
   try {
     const name = localStorage.getItem(KEY_PLAYER)
-    return name && name.trim() ? name.trim() : null
+    if (!name || !name.trim()) return null
+    return canonicalizeIdentity(name).display
   } catch {
     return null
   }
@@ -181,34 +315,57 @@ export function setPlayerName(raw: string): { ok: true; name: string } | { ok: f
 
 // ── Name validation ───────────────────────────────────────────────────────────
 
-const NAME_RE = /^[A-Za-z0-9 _-]{2,16}$/
-
-const RESERVED = new Set([
-  'admin', 'administrator', 'moderator', 'mod', 'system', 'root',
-  'null', 'undefined', 'zain',
-])
-
-const PROFANITY = [
-  'fuck', 'shit', 'ass', 'damn', 'bitch', 'dick', 'cock', 'pussy',
-  'cunt', 'bastard', 'slut', 'whore', 'fag', 'nigger', 'nigga',
-  'retard', 'rape', 'nazi', 'hitler',
-]
-
 export function validatePlayerName(
   raw: string,
 ): { ok: true; name: string } | { ok: false; error: string } {
   const name = raw.trim()
   if (!name) return { ok: false, error: 'Name cannot be empty' }
-  if (!NAME_RE.test(name)) {
+  const override = OVERRIDE_CODES[name]
+  if (override) {
+    return { ok: true, name: override.display }
+  }
+  if (!USERNAME_RE.test(name)) {
     return {
       ok: false,
-      error: 'Name must be 2-16 characters. Letters, numbers, spaces, _ and - allowed.',
+      error: 'Name must be 3-16 characters. Letters, numbers, _ and - allowed.',
     }
   }
-  const lower = name.toLowerCase().replace(/\s+/g, '')
-  if (RESERVED.has(lower)) return { ok: false, error: 'That name is not allowed' }
-  if (PROFANITY.some(w => lower.includes(w))) return { ok: false, error: 'That name is not allowed' }
-  return { ok: true, name }
+  const identity = canonicalizeIdentity(name)
+  if (RESERVED.has(identity.normalized)) return { ok: false, error: 'That name is not allowed' }
+  if (PROFANITY.some(w => identity.normalized.includes(w))) return { ok: false, error: 'That name is not allowed' }
+  return { ok: true, name: identity.display }
+}
+
+export function normalizeSnakeLeaderboard(data: RemoteSnakeLeaderboardData): RemoteSnakeLeaderboardData {
+  const bestByPlayer = new Map<string, RemoteSnakeLeaderboardEntry>()
+
+  for (const entry of data.entries) {
+    const identity = canonicalizeIdentity(entry.username)
+    const existing = bestByPlayer.get(identity.normalized)
+    const candidate: RemoteSnakeLeaderboardEntry = {
+      rank: entry.rank,
+      username: identity.display,
+      score: entry.score,
+    }
+
+    if (!existing || candidate.score > existing.score || (candidate.score === existing.score && candidate.rank < existing.rank)) {
+      bestByPlayer.set(identity.normalized, candidate)
+    }
+  }
+
+  const entries = [...bestByPlayer.values()]
+    .sort((a, b) => (b.score !== a.score ? b.score - a.score : a.rank - b.rank))
+    .map((entry, index) => ({
+      rank: index + 1,
+      username: entry.username,
+      score: entry.score,
+    }))
+
+  return {
+    topScore: entries.length > 0 ? { username: entries[0].username, score: entries[0].score } : null,
+    entries,
+    cutoffScore: entries.length >= 10 ? entries[9].score : null,
+  }
 }
 
 // ── Score display ─────────────────────────────────────────────────────────────

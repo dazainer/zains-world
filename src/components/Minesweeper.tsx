@@ -202,14 +202,16 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
       playSfx(sfxWin.current)
 
       // Local leaderboard
-      if (qualifiesLocal('minesweeper', elapsed)) {
-        const stored = getPlayerName()
-        if (stored) {
-          addEntry('minesweeper', stored, elapsed, `${DIFFICULTY_LABELS[difficulty]} · ${formatTime(elapsed)}`)
-          setLbSaved(true)
-        } else {
-          setLbPending(true)
+      const stored = getPlayerName()
+      if (stored) {
+        if (qualifiesLocal('minesweeper', elapsed, stored)) {
+          const saved = addEntry('minesweeper', stored, elapsed, `${DIFFICULTY_LABELS[difficulty]} · ${formatTime(elapsed)}`)
+          if (saved.status !== 'kept-existing') {
+            setLbSaved(true)
+          }
         }
+      } else if (qualifiesLocal('minesweeper', elapsed)) {
+          setLbPending(true)
       }
     }
   }, [board, difficulty, elapsed, phase])
@@ -242,8 +244,10 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
       setLbNameError(validation.error)
       return
     }
-    addEntry('minesweeper', validation.name, elapsed, `${DIFFICULTY_LABELS[difficulty]} · ${formatTime(elapsed)}`)
-    setLbSaved(true)
+    const saved = addEntry('minesweeper', validation.name, elapsed, `${DIFFICULTY_LABELS[difficulty]} · ${formatTime(elapsed)}`)
+    if (saved.status !== 'kept-existing') {
+      setLbSaved(true)
+    }
     setLbPending(false)
   }
 

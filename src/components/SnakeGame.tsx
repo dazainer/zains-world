@@ -20,9 +20,7 @@ import {
 } from '../lib/snakeAntiCheat'
 import { takeSnakeRunSession } from '../lib/snakeRunSession'
 import {
-  qualifies as lbQualifiesLocal,
-  addEntry as lbAddEntry,
-  getPlayerName,
+  normalizeSnakeLeaderboard,
   setPlayerName as lbSetPlayerName,
 } from '../lib/leaderboard'
 
@@ -98,13 +96,6 @@ export default function SnakeGame({ onClose }: Props) {
   const [runLoading, setRunLoading] = useState(true)
   const [runError, setRunError] = useState<string | null>(null)
   const [showRunLoadingFallback, setShowRunLoadingFallback] = useState(false)
-
-  // Local leaderboard state
-  const [localLbPending, setLocalLbPending]         = useState(false)
-  const [localLbPendingScore, setLocalLbPendingScore] = useState(0)
-  const [localLbNameInput, setLocalLbNameInput]     = useState('')
-  const [localLbNameError, setLocalLbNameError]     = useState<string | null>(null)
-  const [localLbSaved, setLocalLbSaved]             = useState(false)
 
   const snake = useRef<Pos[]>(createInitialSnake())
   const food = useRef<Pos | null>(null)
@@ -260,11 +251,6 @@ export default function SnakeGame({ onClose }: Props) {
     setSubmitted(false)
     setSubmitError(null)
     setUsername('')
-    setLocalLbPending(false)
-    setLocalLbPendingScore(0)
-    setLocalLbNameInput('')
-    setLocalLbNameError(null)
-    setLocalLbSaved(false)
 
     try {
       const session = await takeSnakeRunSession(forceFresh)
@@ -330,31 +316,13 @@ export default function SnakeGame({ onClose }: Props) {
         return
       }
       setSubmitted(true)
-      // Piggyback local leaderboard save
-      lbAddEntry('snake', trimmed, finalScoreRef.current, null)
       lbSetPlayerName(trimmed)
-      setLocalLbSaved(true)
-      setLocalLbPending(false)
       await fetchLeaderboard()
     } catch {
       setSubmitError('Unable to submit score')
     } finally {
       setSubmitting(false)
     }
-  }
-
-  // ---------- local leaderboard save ----------
-
-  function handleLocalLbSave(e: React.FormEvent) {
-    e.preventDefault()
-    const validation = lbSetPlayerName(localLbNameInput)
-    if (!validation.ok) {
-      setLocalLbNameError(validation.error)
-      return
-    }
-    lbAddEntry('snake', validation.name, localLbPendingScore, null)
-    setLocalLbSaved(true)
-    setLocalLbPending(false)
   }
 
   // ---------- restart ----------
@@ -481,18 +449,6 @@ export default function SnakeGame({ onClose }: Props) {
       }
       setGameOver(true)
       if (rafId.current) cancelAnimationFrame(rafId.current)
-
-      // Local leaderboard
-      if (lbQualifiesLocal('snake', finalScore)) {
-        const stored = getPlayerName()
-        if (stored) {
-          lbAddEntry('snake', stored, finalScore, null)
-          setLocalLbSaved(true)
-        } else {
-          setLocalLbPendingScore(finalScore)
-          setLocalLbPending(true)
-        }
-      }
     }
 
     const loop = (ts: number) => {
@@ -564,9 +520,10 @@ export default function SnakeGame({ onClose }: Props) {
 
   const canSubmitScore = Boolean(runSession) && !runLoading && !runError
   const qualifies = gameOver && canSubmitScore && qualifiesForTop10(score)
+  const displayLeaderboard = leaderboard ? normalizeSnakeLeaderboard(leaderboard) : null
 
-  const topScoreDisplay = leaderboard?.topScore
-    ? `${leaderboard.topScore.username} - ${leaderboard.topScore.score}`
+  const topScoreDisplay = displayLeaderboard?.topScore
+    ? `${displayLeaderboard.topScore.username} - ${displayLeaderboard.topScore.score}`
     : lbLoading ? '...' : '—'
   const compactMobile = isTouchDevice && viewport.width > viewport.height
   const touchControlsReserve = isTouchDevice ? (compactMobile ? 110 : 146) : 0
@@ -729,49 +686,6 @@ export default function SnakeGame({ onClose }: Props) {
                 <p style={styles.successText}>Score submitted!</p>
               )}
 
-              {/* Local leaderboard prompt (shown only when not qualifying for remote) */}
-              {localLbPending && !localLbSaved && !qualifies && (
-                <div style={styles.localLbSection}>
-                  <p style={styles.localLbLabel}>Save to local records?</p>
-                  <form
-                    onSubmit={handleLocalLbSave}
-                    style={{
-                      ...styles.localLbForm,
-                      flexDirection: mobileInputColumn ? 'column' : 'row',
-                      width: mobileInputColumn ? '100%' : undefined,
-                    }}
-                  >
-                    <input
-                      type="text"
-                      value={localLbNameInput}
-                      onChange={e => { setLocalLbNameInput(e.target.value); setLocalLbNameError(null) }}
-                      placeholder="Your name"
-                      maxLength={16}
-                      autoFocus
-                      style={{
-                        ...styles.localLbInput,
-                        width: mobileInputColumn ? '100%' : styles.localLbInput.width,
-                        maxWidth: mobileInputColumn ? '13rem' : undefined,
-                      }}
-                    />
-                    <button
-                      type="submit"
-                      style={{
-                        ...styles.localLbSaveBtn,
-                        width: mobileInputColumn ? '100%' : undefined,
-                        maxWidth: mobileInputColumn ? '13rem' : undefined,
-                      }}
-                    >
-                      Save
-                    </button>
-                  </form>
-                  {localLbNameError && <p style={styles.errorText}>{localLbNameError}</p>}
-                </div>
-              )}
-              {localLbSaved && !submitted && (
-                <p style={styles.localLbSavedMsg}>✓ Saved to local records</p>
-              )}
-
               <div
                 style={{
                   ...styles.gameOverBtns,
@@ -814,7 +728,7 @@ export default function SnakeGame({ onClose }: Props) {
                   {leaderboard.entries.length === 0 && (
                     <p style={styles.lbMsg}>No scores yet. Be the first!</p>
                   )}
-                  {leaderboard.entries.map((entry) => (
+                  {displayLeaderboard?.entries.map((entry) => (
                     <div
                       key={entry.rank}
                       style={{
