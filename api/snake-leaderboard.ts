@@ -20,7 +20,6 @@ const SNAKE_RUN_TTL_MS = 2 * 60 * 60 * 1000
 const SNAKE_MAX_TICKS_PER_RUN = Math.floor(SNAKE_RUN_TTL_MS / SNAKE_TICK_MS)
 const SNAKE_MIN_ELAPSED_SLACK_MS = 1500
 const SNAKE_ADMIN_USERNAME = 'zain'
-const JOYCE_ALIAS_NORMALIZED = ['joyc', 'joycead', 'joycelol', 'joyceagain', 'w-joyce', 'joyceyay'] as const
 
 type SnakeDirection = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT'
 
@@ -304,44 +303,10 @@ function validateUsername(raw: unknown): { ok: true; display: string; normalized
   return { ok: true, display: identity.display, normalized: identity.normalized }
 }
 
-async function cleanupCanonicalSnakeEntries(sql: SqlClient) {
-  const aliases = [...JOYCE_ALIAS_NORMALIZED]
-  const rows = await sql`
-    SELECT username, username_normalized, score, created_at
-    FROM snake_leaderboard_entries
-    WHERE username_normalized = 'joyce'
-      OR username_normalized = ANY(${aliases})
-    ORDER BY score DESC, created_at ASC
-  `
-
-  if (rows.length === 0) return
-
-  const best = rows[0]
-  const bestScore = best.score as number
-
-  await sql`
-    INSERT INTO snake_leaderboard_entries (username, username_normalized, score)
-    VALUES ('joyce', 'joyce', ${bestScore})
-    ON CONFLICT (username_normalized)
-    DO UPDATE SET
-      username = 'joyce',
-      score = CASE
-        WHEN EXCLUDED.score > snake_leaderboard_entries.score THEN EXCLUDED.score
-        ELSE snake_leaderboard_entries.score
-      END
-  `
-
-  await sql`
-    DELETE FROM snake_leaderboard_entries
-    WHERE username_normalized = ANY(${aliases})
-  `
-}
-
 // ---------- handlers ----------
 
 async function handleGet(res: VercelResponse) {
   const sql = getDb()
-  await cleanupCanonicalSnakeEntries(sql)
   const rows = await sql`
     SELECT username, score
     FROM snake_leaderboard_entries
@@ -366,7 +331,6 @@ async function handleStart(res: VercelResponse) {
   const sql = getDb()
   await ensureRunSessionsTable(sql)
   await pruneExpiredRunSessions(sql)
-  await cleanupCanonicalSnakeEntries(sql)
 
   const issuedAt = Date.now()
   const expiresAt = issuedAt + SNAKE_RUN_TTL_MS
@@ -431,7 +395,6 @@ async function handleSubmit(body: SnakeRunSubmitRequest, res: VercelResponse) {
   const sql = getDb()
   await ensureRunSessionsTable(sql)
   await pruneExpiredRunSessions(sql)
-  await cleanupCanonicalSnakeEntries(sql)
 
   const sessionRows = await sql`
     SELECT nonce, seed, issued_at, expires_at, consumed_at

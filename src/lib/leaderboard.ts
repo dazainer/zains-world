@@ -1,14 +1,15 @@
 /**
- * leaderboard.ts — Local leaderboard manager for all mini-games.
+ * leaderboard.ts — Shared leaderboard helpers for all mini-games.
  *
- * All data is stored in localStorage only — no remote API involved.
- * The remote snake leaderboard lives in api/snake-leaderboard.ts and is
- * intentionally untouched by this module.
+ * Local run stats still live in localStorage, but the Hall of Records uses
+ * remote API routes. The current visit's claimed identity is tracked in
+ * sessionStorage so casual visitors can claim a name once per visit.
  *
  * Storage layout
  * ──────────────
- *   lbEntries    JSON array of LeaderboardEntry  (all games, all time)
- *   lbPlayerName string                          (reused across games)
+ *   lbEntries        JSON array of LeaderboardEntry  (legacy/local helpers)
+ *   lbSessionPlayer  JSON session identity           (per browser session)
+ *   lbSessionId      string session id               (per browser session)
  *
  * Sort conventions
  * ────────────────
@@ -57,6 +58,13 @@ export interface SaveEntryResult {
   entry: LeaderboardEntry
 }
 
+export interface SessionPlayerIdentity {
+  raw: string
+  display: string
+  normalized: string
+  sessionId: string
+}
+
 export interface RemoteSnakeLeaderboardEntry {
   rank: number
   username: string
@@ -76,9 +84,14 @@ export type RemoteLeaderboardData = RemoteSnakeLeaderboardData
 
 // ── Storage keys ──────────────────────────────────────────────────────────────
 
-const KEY_ENTRIES    = 'lbEntries'
-const KEY_PLAYER     = 'lbPlayerName'
-const TOP_N          = 10
+const KEY_ENTRIES = 'lbEntries'
+const LEGACY_KEY_PLAYER = 'lbPlayerName'
+const KEY_SESSION_PLAYER = 'lbSessionPlayer'
+const KEY_SESSION_ID = 'lbSessionId'
+const TOP_N = 10
+
+let memorySessionId: string | null = null
+let memorySessionPlayer: SessionPlayerIdentity | null = null
 
 // ── Sort direction per game ───────────────────────────────────────────────────
 
@@ -240,28 +253,110 @@ export function qualifies(game: LeaderboardGame, score: number, playerName?: str
   return order === 'desc' ? score > worst.score : score < worst.score
 }
 
-// ── Player name ───────────────────────────────────────────────────────────────
+// ── Player identity ───────────────────────────────────────────────────────────
 
-/** Read the stored player name. Returns null if none has been set yet. */
-export function getPlayerName(): string | null {
+function clearLegacyPlayerName(): void {
   try {
-    const name = localStorage.getItem(KEY_PLAYER)
-    if (!name || !name.trim()) return null
-    return canonicalizeIdentity(name).display
+    localStorage.removeItem(LEGACY_KEY_PLAYER)
   } catch {
-    return null
+    // ignore storage failures
   }
 }
 
-/** Persist the player name after validation. Returns the validation result. */
-export function setPlayerName(raw: string): { ok: true; name: string } | { ok: false; error: string } {
+function createSessionId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
+}
+
+export function getLeaderboardSessionId(): string {
+  if (memorySessionId) return memorySessionId
+
+  try {
+    const stored = sessionStorage.getItem(KEY_SESSION_ID)
+    if (stored && stored.trim()) {
+      memorySessionId = stored
+      return stored
+    }
+
+    const next = createSessionId()
+    sessionStorage.setItem(KEY_SESSION_ID, next)
+    memorySessionId = next
+    return next
+  } catch {
+    memorySessionId = memorySessionId ?? createSessionId()
+    return memorySessionId
+  }
+}
+
+function readSessionPlayer(): SessionPlayerIdentity | null {
+  clearLegacyPlayerName()
+
+  try {
+    const raw = sessionStorage.getItem(KEY_SESSION_PLAYER)
+    if (!raw) return memorySessionPlayer
+
+    const parsed = JSON.parse(raw) as Partial<SessionPlayerIdentity>
+    if (
+      typeof parsed.raw === 'string' &&
+      typeof parsed.display === 'string' &&
+      typeof parsed.normalized === 'string' &&
+      typeof parsed.sessionId === 'string'
+    ) {
+      memorySessionPlayer = {
+        raw: parsed.raw,
+        display: parsed.display,
+        normalized: parsed.normalized,
+        sessionId: parsed.sessionId,
+      }
+      return memorySessionPlayer
+    }
+  } catch {
+    // ignore corrupt session state
+  }
+
+  return memorySessionPlayer
+}
+
+function writeSessionPlayer(identity: SessionPlayerIdentity): void {
+  memorySessionPlayer = identity
+  clearLegacyPlayerName()
+  try {
+    sessionStorage.setItem(KEY_SESSION_PLAYER, JSON.stringify(identity))
+  } catch {
+    // ignore storage failures
+  }
+}
+
+export function getPlayerIdentity(): SessionPlayerIdentity | null {
+  return readSessionPlayer()
+}
+
+/** Read the current visit's display name. Returns null if none has been set yet. */
+export function getPlayerName(): string | null {
+  return readSessionPlayer()?.display ?? null
+}
+
+/** Read the raw submitted identifier for the current visit. */
+export function getPlayerSubmitName(): string | null {
+  return readSessionPlayer()?.raw ?? null
+}
+
+/** Persist the current visit's player identity after validation. */
+export function setPlayerName(
+  raw: string,
+): { ok: true; name: string; normalized: string; submitValue: string } | { ok: false; error: string } {
   const result = validatePlayerName(raw)
   if (!result.ok) return result
-  try {
-    localStorage.setItem(KEY_PLAYER, result.name)
-  } catch {
-    // ignore storage errors
-  }
+
+  writeSessionPlayer({
+    raw: result.submitValue,
+    display: result.name,
+    normalized: result.normalized,
+    sessionId: getLeaderboardSessionId(),
+  })
+
   return result
 }
 
@@ -269,9 +364,12 @@ export function setPlayerName(raw: string): { ok: true; name: string } | { ok: f
 
 export function validatePlayerName(
   raw: string,
-): { ok: true; name: string } | { ok: false; error: string } {
+): { ok: true; name: string; normalized: string; submitValue: string } | { ok: false; error: string } {
+  const submitValue = raw.trim()
   const result = validateLeaderboardName(raw)
-  return result.ok ? { ok: true, name: result.name } : result
+  return result.ok
+    ? { ok: true, name: result.name, normalized: result.normalized, submitValue }
+    : result
 }
 
 export function normalizeSnakeLeaderboard(data: RemoteSnakeLeaderboardData): RemoteSnakeLeaderboardData {
@@ -332,10 +430,11 @@ export async function submitRemoteLeaderboardEntry(
   score: number,
   metadata: string | null,
 ): Promise<{ keptExisting: boolean }> {
+  const sessionId = getLeaderboardSessionId()
   const res = await fetch(getRemoteLeaderboardPath(game), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, score, metadata }),
+    body: JSON.stringify({ username, score, metadata, sessionId }),
   })
 
   const text = await res.text()

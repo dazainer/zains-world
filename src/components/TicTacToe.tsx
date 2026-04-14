@@ -29,7 +29,7 @@ import {
 
 import {
   fetchRemoteLeaderboard,
-  getPlayerName,
+  getPlayerIdentity,
   setPlayerName,
   submitRemoteLeaderboardEntry,
   type RemoteLeaderboardData,
@@ -188,10 +188,10 @@ export default function TicTacToe({ onClose, onViewLeaderboard }: Props) {
     if (r === 'X') {
       playSfx(sfxWin.current)
       const streak = newStats.currentWinStreak
-      const stored = getPlayerName()
+      const stored = getPlayerIdentity()
       if (stored) {
-        if (qualifiesForGlobal(streak, stored)) {
-          void saveGlobalScore(stored, streak, diff).catch((error) => {
+        if (qualifiesForGlobal(streak, stored.display)) {
+          void saveGlobalScore(stored.raw, streak, diff).catch((error) => {
             setLbNameError(error instanceof Error ? error.message : 'Unable to save score')
           })
         }
@@ -349,7 +349,7 @@ export default function TicTacToe({ onClose, onViewLeaderboard }: Props) {
       return
     }
     try {
-      await saveGlobalScore(validation.name, lbPendingScore, difficulty)
+      await saveGlobalScore(validation.submitValue, lbPendingScore, difficulty)
       setLbPending(false)
     } catch (error) {
       setLbNameError(error instanceof Error ? error.message : 'Unable to save score')

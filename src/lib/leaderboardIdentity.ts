@@ -9,7 +9,7 @@ export const USERNAME_RE = /^[A-Za-z0-9_-]{3,16}$/
 
 export const RESERVED_USERNAMES = new Set([
   'admin', 'administrator', 'moderator', 'mod', 'system', 'root',
-  'null', 'undefined', 'vercel', 'zain',
+  'null', 'undefined', 'vercel', 'zain', 'joyce',
 ])
 
 export const PROFANITY = [
@@ -28,20 +28,8 @@ export const OVERRIDE_CODES: Record<string, CanonicalIdentity> = {
   '48273196': { display: 'joyce', normalized: 'joyce' },
 }
 
-export const CANONICAL_NAME_BY_NORMALIZED: Record<string, string> = {
-  zain: 'zain',
-  joyce: 'joyce',
-  joyceyay: 'joyce',
-  'w-joyce': 'joyce',
-  joyceagain: 'joyce',
-  joycelol: 'joyce',
-  joycead: 'joyce',
-  joyc: 'joyce',
-}
-
-export const CANONICAL_DISPLAY_BY_NAME: Record<string, string> = {
-  zain: 'zain',
-  joyce: 'joyce',
+export function isOverrideCode(raw: string): boolean {
+  return Object.prototype.hasOwnProperty.call(OVERRIDE_CODES, raw.trim())
 }
 
 export function canonicalizeIdentity(raw: string): CanonicalIdentity {
@@ -49,12 +37,9 @@ export function canonicalizeIdentity(raw: string): CanonicalIdentity {
   const override = OVERRIDE_CODES[trimmed]
   if (override) return override
 
-  const normalizedInput = trimmed.toLowerCase()
-  const canonical = CANONICAL_NAME_BY_NORMALIZED[normalizedInput] ?? normalizedInput
-
   return {
-    display: CANONICAL_DISPLAY_BY_NAME[canonical] ?? trimmed,
-    normalized: canonical,
+    display: trimmed,
+    normalized: trimmed.toLowerCase(),
   }
 }
 

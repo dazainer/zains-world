@@ -35,7 +35,7 @@ import {
 
 import {
   fetchRemoteLeaderboard,
-  getPlayerName,
+  getPlayerIdentity,
   setPlayerName,
   submitRemoteLeaderboardEntry,
   type RemoteLeaderboardData,
@@ -228,10 +228,10 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
       playSfx(sfxWin.current)
 
       // Local leaderboard
-      const stored = getPlayerName()
+      const stored = getPlayerIdentity()
       if (stored) {
-        if (qualifiesForGlobal(elapsed, stored)) {
-          void saveGlobalScore(stored, elapsed, `${DIFFICULTY_LABELS[difficulty]} · ${formatTime(elapsed)}`).catch((error) => {
+        if (qualifiesForGlobal(elapsed, stored.display)) {
+          void saveGlobalScore(stored.raw, elapsed, `${DIFFICULTY_LABELS[difficulty]} · ${formatTime(elapsed)}`).catch((error) => {
             setLbNameError(error instanceof Error ? error.message : 'Unable to save score')
           })
         }
@@ -270,7 +270,7 @@ export default function Minesweeper({ onClose, onViewLeaderboard }: Props) {
       return
     }
     try {
-      await saveGlobalScore(validation.name, elapsed, `${DIFFICULTY_LABELS[difficulty]} · ${formatTime(elapsed)}`)
+      await saveGlobalScore(validation.submitValue, elapsed, `${DIFFICULTY_LABELS[difficulty]} · ${formatTime(elapsed)}`)
       setLbPending(false)
     } catch (error) {
       setLbNameError(error instanceof Error ? error.message : 'Unable to save score')
