@@ -13,6 +13,7 @@ import type { InteriorDecoSheetKey } from './InteriorDeco'
 import { TileRenderer, type TileSet } from './TileRenderer'
 import { SpriteSheet, Animation, type Frame } from './SpriteSheet'
 import { AmbientSprite } from './AmbientSprite'
+import { DayNightCycle } from './DayNightCycle'
 import { roomRegistry, type RoomData, type RoomId, type DoorDef } from './RoomManager'
 
 // ── Room data imports ───────────────────────────────────────────────────────
@@ -159,6 +160,7 @@ export class GameEngine {
   private lastPromptState = false
   private showDebugOverlay = false
   private overworldLayerMode = 0
+  private dayNightCycle: DayNightCycle
 
   private getViewportSize(room: RoomData = this.currentRoom) {
     if (room.isInterior) {
@@ -196,6 +198,7 @@ export class GameEngine {
     this.camera    = new Camera(OVERWORLD_VIEW_W, OVERWORLD_VIEW_H)
     this.collision = new CollisionMap(overworldCollision, 32, overworldRoom.collisionRects)
     this.tileRenderer = new TileRenderer(32)
+    this.dayNightCycle = new DayNightCycle()
 
     this.desertTileSet = {
       sheet: new SpriteSheet('/assets/tiles/desert/DESERT TILESET 32x32.png'),
@@ -649,6 +652,9 @@ export class GameEngine {
       }
       this.ctx = this.mainCtx
       ctx.drawImage(this.overworldCanvas, 0, 0, NATIVE_W, NATIVE_H)
+
+      ctx.fillStyle = this.dayNightCycle.getOverlayColor()
+      ctx.fillRect(0, 0, NATIVE_W, NATIVE_H)
     }
 
     // Transition fade overlay
