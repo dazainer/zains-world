@@ -1,9 +1,9 @@
 /**
  * Secret Room — hidden personal hideout, accessed via fake wall in the Sphinx.
- * Cozy, atmospheric room with 5 interactive stations:
+ * Cozy, atmospheric room with 6 interactive stations:
  *   Debug Terminal (back wall center), Bookshelf (left wall),
- *   Snake Game console (right wall), Bulletin Board (back wall left),
- *   Jukebox (back wall right).
+ *   Snake Game console + Tic-Tac-Toe cabinet (right wall),
+ *   Bulletin Board (back wall left), Jukebox (back wall right).
  */
 import type { TileType } from '../CollisionMap'
 import type { RoomData, DoorDef, InteractionZoneDef } from '../RoomManager'
@@ -25,7 +25,7 @@ const D: TileType = 3
 // Layout: cozy hideout with stations along the walls, open floor in the center.
 // Back wall (row 1): bulletin board (cols 2-3), terminal screen (cols 6-7), jukebox (cols 10-11)
 // Left wall: bookshelf (col 1, rows 5-6 backing)
-// Right wall: arcade cabinet (col 12, rows 5-6 backing)
+// Right wall: two game cabinets (cols 9-10 backing, row 5 interaction)
 // prettier-ignore
 const collisionGrid: TileType[][] = [
 // col: 0  1  2  3  4  5  6  7  8  9 10 11 12 13
@@ -33,7 +33,7 @@ const collisionGrid: TileType[][] = [
 /* 1 */[W, W, W, W, W, W, W, W, W, W, W, W],
 /* 2 */[W, F, F, F, F, F, F, F, F, F, F, W],
 /* 3 */[W, F, F, F, F, F, F, F, F, F, F, W],
-/* 4 */[W, W, F, F, F, F, F, F, F, F, W, W],
+/* 4 */[W, W, F, F, F, F, F, F, F, W, W, W],
 /* 5 */[W, F, F, F, F, F, F, F, F, F, F, W],
 /* 6 */[W, F, F, F, F, F, F, F, F, F, F, W],
 /* 7 */[W, F, F, F, F, F, F, F, F, F, F, W],
@@ -50,6 +50,7 @@ collisionGrid[2][9] = I  // jukebox
 
 // Side wall stations: interact from row 5
 collisionGrid[5][1]  = I  // bookshelf
+collisionGrid[5][9]  = I  // tic-tac-toe cabinet
 collisionGrid[5][10] = I  // arcade cabinet (snake game)
 
 // ── Exported decoration metadata ────────────────────────────────────────────
@@ -107,6 +108,14 @@ export const secretStations: SecretStation[] = [
     icon: 'bookshelf',
   },
   {
+    id: 'tictactoe-table',
+    label: 'TTT',
+    col: 9, row: 5,
+    propTiles: [{ col: 9, row: 4 }],
+    color: '#c8a850',
+    icon: 'arcade',
+  },
+  {
     id: 'arcade-cabinet',
     label: 'SNAKE',
     col: 10, row: 5,
@@ -158,6 +167,7 @@ const interactionZones: InteractionZoneDef[] = [
   { col: 3,  row: 2, id: 'bulletin-board',    payload: 'bulletin' },
   { col: 9, row: 2, id: 'jukebox',           payload: 'jukebox' },
   { col: 1,  row: 5, id: 'bookshelf',         payload: 'bookshelf' },
+  { col: 9,  row: 5, id: 'tictactoe-table',   payload: 'tictactoe' },
   { col: 10, row: 5, id: 'arcade-cabinet',    payload: 'snake-game' },
 ]
 

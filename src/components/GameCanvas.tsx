@@ -14,6 +14,7 @@ import ContactPanel from './ContactPanel'
 import DebugTerminal from './DebugTerminal'
 import BookshelfPanel from './BookshelfPanel'
 import SnakeGame from './SnakeGame'
+import TicTacToe from './TicTacToe'
 import MobileControls from './MobileControls'
 import MapOverlay from './MapOverlay'
 import ResumePrompt from './ResumePrompt'
@@ -582,6 +583,8 @@ export default function GameCanvas() {
       overlay = <BookshelfPanel onClose={clearInteraction} />
     } else if (id === 'arcade-cabinet') {
       overlay = <SnakeGame onClose={clearInteraction} />
+    } else if (id === 'tictactoe-table') {
+      overlay = <TicTacToe onClose={clearInteraction} />
     } else if (id === 'bulletin-board') {
       const notice = bulletinNotices[Math.floor(Math.random() * bulletinNotices.length)]
       overlay = <DialogueBox pages={[notice]} onComplete={closeTextOverlay} onTypingProgress={handleDialogueTypingProgress} />
@@ -668,7 +671,13 @@ export default function GameCanvas() {
       {showMap && <MapOverlay engineRef={engineRef} onClose={closeMap} />}
       <MobileControls
         inputManager={inputManager}
-        mode={interaction?.id === 'arcade-cabinet' ? 'snake' : 'game'}
+        mode={
+          interaction?.id === 'arcade-cabinet'
+            ? 'snake'
+            : interaction?.id === 'tictactoe-table'
+              ? 'none'
+              : 'game'
+        }
       />
     </div>
   )

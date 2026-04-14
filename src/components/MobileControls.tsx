@@ -7,13 +7,13 @@ import type { InputManager, InputState } from '../game/InputManager'
 
 interface Props {
   inputManager: InputManager | null
-  mode?: 'game' | 'snake'
+  mode?: 'game' | 'snake' | 'none'
 }
 
 const isTouchDevice = 'ontouchstart' in window
 
 export default function MobileControls({ inputManager, mode = 'game' }: Props) {
-  if (!isTouchDevice) return null
+  if (!isTouchDevice || mode === 'none') return null
 
   // Track which buttons are currently pressed
   const pressed = useRef<Partial<InputState>>({})

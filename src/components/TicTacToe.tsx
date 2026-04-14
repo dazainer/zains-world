@@ -91,6 +91,7 @@ export default function TicTacToe({ onClose, onViewLeaderboard }: Props) {
   const sfxMove = useRef<HTMLAudioElement | null>(null)
   const sfxWin  = useRef<HTMLAudioElement | null>(null)
   const sfxLose = useRef<HTMLAudioElement | null>(null)
+  const mummyMoveTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
     sfxMove.current = makeAudio('/assets/sfx/interact_default.wav', 0.12)
@@ -101,6 +102,10 @@ export default function TicTacToe({ onClose, onViewLeaderboard }: Props) {
   // ── Game state helpers ────────────────────────────────────────────────────
 
   const startGame = useCallback((diff: Difficulty) => {
+    if (mummyMoveTimerRef.current !== null) {
+      window.clearTimeout(mummyMoveTimerRef.current)
+      mummyMoveTimerRef.current = null
+    }
     setDifficulty(diff)
     setStats(loadStats(diff))
     setTauntText(randomTaunt())
@@ -108,6 +113,10 @@ export default function TicTacToe({ onClose, onViewLeaderboard }: Props) {
   }, [])
 
   const initBoard = useCallback(() => {
+    if (mummyMoveTimerRef.current !== null) {
+      window.clearTimeout(mummyMoveTimerRef.current)
+      mummyMoveTimerRef.current = null
+    }
     setBoard(emptyBoard())
     setCurrentTurn('X')
     setResult(null)
@@ -119,11 +128,16 @@ export default function TicTacToe({ onClose, onViewLeaderboard }: Props) {
   }, [])
 
   const finaliseResult = useCallback((b: Board, r: GameResult, diff: Difficulty) => {
+    if (mummyMoveTimerRef.current !== null) {
+      window.clearTimeout(mummyMoveTimerRef.current)
+      mummyMoveTimerRef.current = null
+    }
     setResult(r)
     setWinLine(getWinningLine(b))
     setCommentary(resultComment(r, diff))
     const newStats = updateStats(diff, r)
     setStats(newStats)
+    setMummyThinking(false)
     setScreen('result')
 
     if (r === 'X') playSfx(sfxWin.current)
@@ -157,7 +171,8 @@ export default function TicTacToe({ onClose, onViewLeaderboard }: Props) {
     setCurrentTurn('O')
     setMummyThinking(true)
 
-    setTimeout(() => {
+    mummyMoveTimerRef.current = window.setTimeout(() => {
+      mummyMoveTimerRef.current = null
       const move = getMummyMove(next, difficulty)
       playSfx(sfxMove.current)
 
@@ -174,6 +189,14 @@ export default function TicTacToe({ onClose, onViewLeaderboard }: Props) {
       }
     }, MUMMY_DELAY_MS)
   }, [screen, currentTurn, board, mummyThinking, result, difficulty, finaliseResult])
+
+  useEffect(() => {
+    return () => {
+      if (mummyMoveTimerRef.current !== null) {
+        window.clearTimeout(mummyMoveTimerRef.current)
+      }
+    }
+  }, [])
 
   // ── Keyboard ──────────────────────────────────────────────────────────────
 
