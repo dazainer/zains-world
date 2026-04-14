@@ -24,6 +24,7 @@ export interface GuestMessage {
 const KEY_MESSAGES  = 'guestbook_messages'
 const KEY_LAST_POST = 'guestbook_last_post'
 const KEY_LAST_NAME = 'guestbook_last_name'
+const KEY_ALLOW_ZAIN = 'guestbook_allow_zain'
 export const MAX_MESSAGES  = 50
 const RATE_LIMIT_MS = 60 * 60 * 1000  // 1 hour
 export const GUEST_BOOK_INTERACTION_ID = 'guest-book'
@@ -124,12 +125,28 @@ function hasProfanity(text: string): boolean {
   return PROFANITY.some(w => lower.includes(w))
 }
 
+function hasZainPermission(): boolean {
+  try {
+    return localStorage.getItem(KEY_ALLOW_ZAIN) === '1'
+  } catch {
+    return false
+  }
+}
+
+function grantZainPermission(): void {
+  try {
+    localStorage.setItem(KEY_ALLOW_ZAIN, '1')
+  } catch {
+    // ignore storage errors
+  }
+}
+
 export function validateName(
   raw: string,
 ): { ok: true; name: string } | { ok: false; error: string } {
   const name = raw.trim()
   if (!name) return { ok: false, error: 'Name cannot be empty' }
-  if (name === ZAIN_OVERRIDE_CODE) {
+  if (name === ZAIN_OVERRIDE_CODE || (name.toLowerCase() === 'zain' && hasZainPermission())) {
     return { ok: true, name: 'zain' }
   }
   if (!NAME_RE.test(name)) {
@@ -163,8 +180,12 @@ export function addMessage(
     return { ok: false, error: `You can post again in about ${min} minute${min !== 1 ? 's' : ''}` }
   }
 
-  const nameResult = validateName(name)
+  const rawName = name.trim()
+  const nameResult = validateName(rawName)
   if (!nameResult.ok) return nameResult
+  if (rawName === ZAIN_OVERRIDE_CODE) {
+    grantZainPermission()
+  }
 
   const msgResult = validateMessage(message)
   if (!msgResult.ok) return msgResult

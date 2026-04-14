@@ -125,13 +125,14 @@ export default function GuestBook({ onClose }: Props) {
     setMsgError (mv.ok ? null : mv.error)
     if (!nv.ok || !mv.ok) return
 
-    const result = addMessage(nv.name, mv.msg, color)
+    const result = addMessage(name, mv.msg, color)
     if (!result.ok) {
       setSubmitError(result.error)
       return
     }
 
     setMessages(getMessages())
+    setName(result.entry.name)
     setMessage('')
     setMsLeft(msUntilNextPost())
     setJustPosted(true)
