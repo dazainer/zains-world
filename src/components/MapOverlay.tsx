@@ -570,9 +570,10 @@ const styles: Record<string, CSSProperties> = {
   },
   toggleButton: {
     fontFamily: "'Press Start 2P', monospace",
-    fontSize: '0.36rem',
+    fontSize: '0.46rem',
     borderRadius: 999,
-    padding: '8px 12px',
+    padding: '12px 18px',
+    minWidth: 220,
     border: '1px solid rgba(209, 170, 85, 0.55)',
     cursor: 'pointer',
     transition: 'transform 120ms ease, background 120ms ease, color 120ms ease',
