@@ -13,7 +13,10 @@ interface Props {
 const isTouchDevice = 'ontouchstart' in window
 
 export default function MobileControls({ inputManager, mode = 'game' }: Props) {
-  if (!isTouchDevice || mode === 'none') return null
+  // NOTE: every hook must run before the `mode === 'none'` early return below.
+  // `mode` flips to 'none' while Tic-Tac-Toe / Minesweeper are open and back to
+  // 'game' on close, so bailing out first would change the hook count between
+  // renders and crash React on touch devices.
 
   // Track which buttons are currently pressed
   const pressed = useRef<Partial<InputState>>({})
@@ -40,6 +43,8 @@ export default function MobileControls({ inputManager, mode = 'game' }: Props) {
     if (mode === 'snake') return
     update(dir, false)
   }, [mode, update])
+
+  if (!isTouchDevice || mode === 'none') return null
 
   const dpadBtn = (dir: 'up' | 'down' | 'left' | 'right', label: string) => (
     <button

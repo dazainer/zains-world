@@ -12,7 +12,8 @@ export interface InputState {
   escape: boolean
 }
 
-const DEBUG_KEY_TOGGLES_ENABLED = false
+/** Flip to true to restore the dev-only debug key toggles (overlay, layer cycle, day/night speed). */
+export const DEBUG_KEY_TOGGLES_ENABLED = false
 
 export class InputManager {
   private keys: Record<string, boolean> = {}
@@ -68,7 +69,7 @@ export class InputManager {
       this.mapToggleQueued = true
     }
 
-    if (false && import.meta.env.DEV && e.code === 'Semicolon' && !e.repeat) {
+    if (DEBUG_KEY_TOGGLES_ENABLED && import.meta.env.DEV && e.code === 'Semicolon' && !e.repeat) {
       this.dayNightSpeedToggleQueued = true
       e.preventDefault()
     }

@@ -630,10 +630,23 @@ export const bulletinNotices = [
 ## Build Commands
 ```bash
 npm run dev      # Start dev server (http://localhost:5173)
-npm run build    # Production build (output in dist/)
+npm run build    # Production build (output in dist/) — runs `tsc -b` first
+npm run lint     # ESLint 9 flat config (eslint.config.js)
 npm run preview  # Preview production build locally
 vercel           # Deploy to Vercel
 ```
+
+`npm run lint` should stay at **0 errors**. It currently reports 7 warnings, all
+`react-hooks/exhaustive-deps` plus one `react-refresh/only-export-components`; they are
+left deliberately because "fixing" a deps array here can change runtime behaviour
+(e.g. adding `restart` to the Snake effect would reset a live game). Treat new errors as
+real — the rule set already caught a genuine mobile crash in `MobileControls.tsx`, where
+hooks ran after an early return and the hook count changed when a touch user opened or
+closed Tic-Tac-Toe / Minesweeper.
+
+The dev-only debug key toggles are gated behind `DEBUG_KEY_TOGGLES_ENABLED`, exported from
+`src/game/InputManager.ts` and also consumed by `GameEngine.ts`. Flip that one constant to
+restore the debug overlay, overworld layer cycling, and day/night speed keys.
 
 ## Development Phases
 1. **Scaffold**: Vite + React + TS project, directory structure, deploy blank to Vercel

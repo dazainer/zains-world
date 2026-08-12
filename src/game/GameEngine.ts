@@ -5,7 +5,7 @@
  *   • overworld: desert tileset layers + cropped structures + props + ambients
  *   • interior:  canvas-drawn dungeon walls/floors + Door.png exits + Fire.png torches
  */
-import { InputManager } from './InputManager'
+import { InputManager, DEBUG_KEY_TOGGLES_ENABLED } from './InputManager'
 import { Player, type Direction } from './Player'
 import { Camera } from './Camera'
 import { CollisionMap, getPlayerCollisionBounds } from './CollisionMap'
@@ -493,7 +493,7 @@ export class GameEngine {
     if (this.currentRoom.id === 'overworld' && this.input.consumeOverworldLayerCycle()) {
       this.overworldLayerMode = (this.overworldLayerMode + 1) % 3
     }
-    if (false && import.meta.env.DEV && this.input.consumeDayNightSpeedToggle()) {
+    if (DEBUG_KEY_TOGGLES_ENABLED && import.meta.env.DEV && this.input.consumeDayNightSpeedToggle()) {
       this.dayNightCycle.cycleSpeedMultiplier()
     }
 
