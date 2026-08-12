@@ -46,6 +46,7 @@ const ROOM_MARKER_SOURCE_BY_ROOM_ID: Record<string, string> = {
   experienceTower_1: 'tower',
   experienceTower_2: 'tower',
   experienceTower_3: 'tower',
+  experienceTower_4: 'tower',
   contactPortal: 'hut',
   secretRoom: 'sphinx',
   pyramidLore: 'door-pyramid',

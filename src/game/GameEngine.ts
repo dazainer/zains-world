@@ -34,7 +34,7 @@ import {
 } from './maps/overworld'
 import { projectsLabRoom, stationDecos } from './maps/projectsLab'
 import { skillsForgeRoom } from './maps/skillsForge'
-import { experienceTower1Room, experienceTower2Room, experienceTower3Room, towerGalleryData } from './maps/experienceTower'
+import { experienceTower1Room, experienceTower2Room, experienceTower3Room, experienceTower4Room, towerGalleryData } from './maps/experienceTower'
 import { contactPortalRoom, portalTiles, contactStations } from './maps/contactPortal'
 import { secretRoomData, secretStations, isSecretPropTile } from './maps/secretRoom'
 import {
@@ -219,6 +219,7 @@ export class GameEngine {
     roomRegistry.register('experienceTower_1', experienceTower1Room)
     roomRegistry.register('experienceTower_2', experienceTower2Room)
     roomRegistry.register('experienceTower_3', experienceTower3Room)
+    roomRegistry.register('experienceTower_4', experienceTower4Room)
     roomRegistry.register('contactPortal', contactPortalRoom)
     roomRegistry.register('secretRoom', secretRoomData)
     roomRegistry.register('pyramidLore', pyramidLoreRoom)
@@ -2176,6 +2177,8 @@ export class GameEngine {
       exitDoors = this.currentRoom.doors.filter((door) => door.targetRoom === 'experienceTower_1')
     } else if (exitDoors.length === 0 && roomId === 'experienceTower_3') {
       exitDoors = this.currentRoom.doors.filter((door) => door.targetRoom === 'experienceTower_2')
+    } else if (exitDoors.length === 0 && roomId === 'experienceTower_4') {
+      exitDoors = this.currentRoom.doors.filter((door) => door.targetRoom === 'experienceTower_3')
     }
 
     if (exitDoors.length === 0) return
@@ -2221,6 +2224,7 @@ export class GameEngine {
       experienceTower_1: 'FLOOR 1',
       experienceTower_2: 'FLOOR 2',
       experienceTower_3: 'FLOOR 3',
+      experienceTower_4: 'FLOOR 4',
     }
     const floorLabel = floorLabelByRoom[this.currentRoom.id]
     if (!floorLabel) return

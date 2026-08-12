@@ -70,6 +70,13 @@ export const towerGalleryData: Record<string, FloorGalleryData> = {
       { photo: '/assets/photos/web/omam4.jpg', experienceId: 'omam-mun', col: 7 },
     ],
   },
+  experienceTower_4: {
+    title: 'IdealRatings — DevOps Intern',
+    titleColor: '#f0913c',
+    paintings: [
+      { photo: '/assets/photos/web/idealratings.png', experienceId: 'idealratings', col: 5 },
+    ],
+  },
 }
 
 export const towerPaintingOverlayByInteractionId: Record<string, PaintingInteractionOverlay> = {
@@ -82,6 +89,7 @@ export const towerPaintingOverlayByInteractionId: Record<string, PaintingInterac
   'exp-painting-3a': { photo: '/assets/photos/web/omam1.jpg', experienceId: 'omam-mun' },
   'exp-painting-3b': { photo: '/assets/photos/web/omam3.jpg', experienceId: 'omam-mun' },
   'exp-painting-3c': { photo: '/assets/photos/web/omam4.jpg', experienceId: 'omam-mun' },
+  'exp-painting-4a': { photo: '/assets/photos/web/idealratings.png', experienceId: 'idealratings' },
 }
 
 // ── Grid builder ────────────────────────────────────────────────────────────
@@ -164,11 +172,13 @@ const floor2Zones: InteractionZoneDef[] = [
 
 // ── Floor 3: OMAM MUN ──────────────────────────────────────────────────────
 
-const floor3Grid = makeGalleryGrid(false, false, true)
+const floor3Grid = makeGalleryGrid(false, true, true)
 
 const floor3Doors: DoorDef[] = [
   { col: 9,  row: 8, targetRoom: 'experienceTower_2', spawnX: 10 * T, spawnY: 3 * T + T / 2, spawnDirection: 'down' },
   { col: 10, row: 8, targetRoom: 'experienceTower_2', spawnX: 10 * T, spawnY: 3 * T + T / 2, spawnDirection: 'down' },
+  { col: 9,  row: 2, targetRoom: 'experienceTower_4', spawnX: 10 * T, spawnY: 7 * T + T / 2, spawnDirection: 'up' },
+  { col: 10, row: 2, targetRoom: 'experienceTower_4', spawnX: 10 * T, spawnY: 7 * T + T / 2, spawnDirection: 'up' },
 ]
 
 const floor3Zones: InteractionZoneDef[] = [
@@ -180,19 +190,50 @@ const floor3Zones: InteractionZoneDef[] = [
   { col: 8, row: 2, id: 'exp-painting-3c', payload: 'omam-mun' },
 ]
 
+// ── Floor 4: IdealRatings (single centred exhibit) ──────────────────────────
+
+const floor4Grid = makeGalleryGrid(false, false, true)
+
+// Only one painting on this floor, centred over cols 5-6. Clear the interaction
+// tiles the shared gallery grid stamps for the other two painting slots.
+for (const col of [1, 2, 4, 7, 8]) {
+  floor4Grid[2][col] = F
+}
+floor4Grid[2][6] = I
+
+const floor4Doors: DoorDef[] = [
+  { col: 9,  row: 8, targetRoom: 'experienceTower_3', spawnX: 10 * T, spawnY: 3 * T + T / 2, spawnDirection: 'down' },
+  { col: 10, row: 8, targetRoom: 'experienceTower_3', spawnX: 10 * T, spawnY: 3 * T + T / 2, spawnDirection: 'down' },
+]
+
+const floor4Zones: InteractionZoneDef[] = [
+  { col: 5, row: 2, id: 'exp-painting-4a', payload: 'idealratings' },
+  { col: 6, row: 2, id: 'exp-painting-4a', payload: 'idealratings' },
+]
+
 // ── Torch factory (gallery lighting — more torches for museum feel) ──────────
 
-function buildGalleryAmbients(): AmbientSprite[] {
+const THREE_PAINTING_TORCHES = [
+  { col: 0,  row: 1 },   // left of painting 1
+  { col: 3,  row: 1 },   // between paintings 1-2
+  { col: 6,  row: 1 },   // between paintings 2-3
+  { col: 9,  row: 1 },   // right of painting 3
+  { col: 1,  row: 6 },   // left wall mid
+  { col: 10, row: 6 },   // right wall mid
+]
+
+// Floor 4 has a single centred painting over cols 5-6, so the north torches
+// flank it instead of sitting in the three-painting gaps.
+const SINGLE_PAINTING_TORCHES = [
+  { col: 3,  row: 1 },   // left of the centred painting
+  { col: 7,  row: 1 },   // right of the centred painting
+  { col: 1,  row: 6 },   // left wall mid
+  { col: 10, row: 6 },   // right wall mid
+]
+
+function buildGalleryAmbients(positions = THREE_PAINTING_TORCHES): AmbientSprite[] {
   const fireSheet = new SpriteSheet('/assets/tiles/dungeon/Fire.png')
   const frames = SpriteSheet.buildRow(0, 0, 16, 32, 6)
-  const positions = [
-    { col: 0,  row: 1 },   // left of painting 1
-    { col: 3,  row: 1 },   // between paintings 1-2
-    { col: 6,  row: 1 },   // between paintings 2-3
-    { col: 9,  row: 1 },   // right of painting 3
-    { col: 1,  row: 6 },   // left wall mid
-    { col: 10, row: 6 },   // right wall mid
-  ]
   return positions.map((pos, i) => {
     const torch = new AmbientSprite({
       type: 'torch',
@@ -250,5 +291,17 @@ export const experienceTower3Room: RoomData = {
   interactionZones: floor3Zones,
   isInterior: true,
   buildAmbients: buildGalleryAmbients,
+  spriteDecos: gallerySpriteDecos,
+}
+
+export const experienceTower4Room: RoomData = {
+  id: 'experienceTower_4',
+  cols: COLS, rows: ROWS, tileSize: T,
+  collisionGrid: floor4Grid,
+  defaultSpawn: { x: 6 * T, y: 6 * T + T / 2 },
+  doors: floor4Doors,
+  interactionZones: floor4Zones,
+  isInterior: true,
+  buildAmbients: () => buildGalleryAmbients(SINGLE_PAINTING_TORCHES),
   spriteDecos: gallerySpriteDecos,
 }

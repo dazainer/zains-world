@@ -4,7 +4,7 @@
 A personal portfolio website built as a top-down 2D pixel art exploration game set in an Ancient Egypt / desert theme. Visitors control a pharaoh character that walks around a small world, entering buildings and interacting with objects to discover portfolio content (projects, skills, experience, contact info). A "Skip to Portfolio →" link is always visible in the top-right corner for users who prefer a traditional view.
 
 **Live URL**: https://zainkhalil.ca (deployed on Vercel, domain registered on Porkbun)
-**Owner**: Zain Khalil — CS/BBA student at University of Waterloo
+**Owner**: Zain Khalil — Bachelor of Computer Science (BCS), Co-op, University of Waterloo (Fall 2025 – Present)
 **GitHub**: https://github.com/dazainer
 **LinkedIn**: https://www.linkedin.com/in/zainskhalil
 **Contact**: z7khalil@uwaterloo.ca
@@ -94,6 +94,25 @@ These notes reflect the live codebase more reliably than some of the original de
 - Optimized web-photo copies now live in `public/assets/photos/web/`.
   - Live portfolio and Experience Tower references should prefer the `web/` copies over the original full-resolution files.
 - `src/components/DialogueBox.tsx` and `src/components/InteractionPrompt.tsx` were both recently scaled up for readability.
+- **Winter 2027 co-op content refresh (2026-08-12).** The data-file examples further down this
+  document predate it — treat `src/data/*.ts` as the source of truth, not those snippets.
+  - `data/experience.ts` gained `kind: 'professional' | 'leadership'` plus the
+    `professionalExperiences` / `leadershipExperiences` exports; `floor` is now `number | null`
+    (it is documentation-only and unused in code). IdealRatings (DevOps Intern) leads the list
+    and has `floor: null` because the Experience Tower is a photo gallery and no photos exist
+    for it yet — adding a 4th tower floor requires 1–3 photos.
+  - `data/projects.ts` gained `featured: boolean` plus `featuredProjects` / `secondaryProjects`.
+    Abdo leads; Expense Tracker is `featured: false` and renders in the portfolio's
+    "Also built" list. Note `monitorAnimation` has no consumers — it is vestigial.
+  - `data/skills.ts` categories are now `language | backend | cloud | testing | ai`, with
+    `CATEGORY_ORDER` / `CATEGORY_LABELS` driving the portfolio's grouping. `tier` is retained
+    solely for the game's pedestal glow. `pyramidLore.ts` places a curated 14-skill subset via
+    its own hardcoded `skillLayout`; skills absent from that layout simply do not appear in the
+    game room, which is intentional.
+  - Projects Lab now has a 4th workstation (Abdo) at cols 11–12. The station render path keys
+    off `row === 4` in `GameEngine.ts`, so any new station must keep its interaction row at 4.
+  - `public/resume.pdf` is the single résumé path, referenced by `StaticPortfolio.tsx` and
+    `ResumePrompt.tsx`. Replace the file in place rather than adding a second PDF.
 
 ## Deployment Notes
 

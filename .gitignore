@@ -34,3 +34,6 @@ Thumbs.db
 
 # Vercel
 .vercel
+
+# Local admin secret (read via SNAKE_ADMIN_CODE) — never commit
+.admin-code

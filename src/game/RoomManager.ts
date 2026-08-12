@@ -16,6 +16,7 @@ export type RoomId =
   | 'experienceTower_1'
   | 'experienceTower_2'
   | 'experienceTower_3'
+  | 'experienceTower_4'
   | 'contactPortal'
   | 'secretRoom'
   | 'pyramidLore'

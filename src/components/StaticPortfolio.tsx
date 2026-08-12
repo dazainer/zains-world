@@ -4,9 +4,9 @@
  */
 import { useEffect, useRef, useState, useCallback, type MouseEventHandler } from 'react'
 import { personalInfoPortfolio } from '../data/personalInfoPortfolio'
-import { projects } from '../data/projects'
-import { skills } from '../data/skills'
-import { experiences } from '../data/experience'
+import { featuredProjects, secondaryProjects } from '../data/projects'
+import { skills, CATEGORY_ORDER, CATEGORY_LABELS } from '../data/skills'
+import { professionalExperiences, leadershipExperiences } from '../data/experience'
 
 const PROFILE_PHOTO = '/assets/photos/web/omam4-hero.jpg'
 const PROFILE_PHOTO_POSITION = '68% 24%'
@@ -46,6 +46,7 @@ export default function StaticPortfolio() {
   const playCtaBulgeStartTimerRef = useRef<number | null>(null)
   const playCtaBulgeTimerRef = useRef<number | null>(null)
   const [playCtaBulging, setPlayCtaBulging] = useState(false)
+  const { education } = personalInfoPortfolio
 
   const triggerPlayCtaBulge = useCallback<MouseEventHandler<HTMLAnchorElement>>((event) => {
     event.preventDefault()
@@ -92,7 +93,7 @@ export default function StaticPortfolio() {
   }, [])
 
   useEffect(() => {
-    document.title = 'Zain Khalil — Portfolio'
+    document.title = 'Zain Khalil — Software Engineering Co-op'
     return () => {
       if (playCtaBulgeStartTimerRef.current !== null) {
         window.clearTimeout(playCtaBulgeStartTimerRef.current)
@@ -102,7 +103,7 @@ export default function StaticPortfolio() {
         window.clearTimeout(playCtaBulgeTimerRef.current)
         playCtaBulgeTimerRef.current = null
       }
-      document.title = "Zain's World — Zain Khalil"
+      document.title = "Zain Khalil — Software Engineering Co-op | Zain's World"
     }
   }, [])
 
@@ -123,12 +124,12 @@ export default function StaticPortfolio() {
                     transform: `translateX(${PROFILE_PHOTO_SHIFT_X}px) scale(${PROFILE_PHOTO_SCALE})`,
                   }}
                 />
-                <div className="sp-photo-badge">Open to co-op</div>
+                <div className="sp-photo-badge">Winter 2027 co-op</div>
               </div>
 
               <p className="sp-kicker">Interactive portfolio, remixed for the web</p>
               <h1 className="sp-name">{personalInfoPortfolio.name}</h1>
-              <p className="sp-title">CS/BBA @ University of Waterloo</p>
+              <p className="sp-title">{personalInfoPortfolio.headline}</p>
               <p className="sp-summary">{personalInfoPortfolio.bio[0]}</p>
               <p className="sp-summary-secondary">{personalInfoPortfolio.bio[1]}</p>
 
@@ -144,7 +145,12 @@ export default function StaticPortfolio() {
                 <a href={`mailto:${personalInfoPortfolio.contact.email}`} className="sp-btn sp-btn-primary">
                   Email Me
                 </a>
-                <a href="/resume.pdf" className="sp-btn sp-btn-secondary">
+                <a
+                  href="/resume.pdf"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="sp-btn sp-btn-secondary"
+                >
                   Resume
                 </a>
                 <a
@@ -158,17 +164,23 @@ export default function StaticPortfolio() {
               </div>
 
               <div className="sp-quick-grid">
+                <article className="sp-quick-card sp-quick-card-wide">
+                  <span className="sp-quick-label">Education</span>
+                  <strong className="sp-quick-value">{education.school}</strong>
+                  <span className="sp-quick-note">{education.degree}</span>
+                  <span className="sp-quick-note">{education.period} &middot; {education.location}</span>
+                </article>
+                <article className="sp-quick-card sp-quick-card-wide">
+                  <span className="sp-quick-label">Focus</span>
+                  <strong className="sp-quick-value">Backend systems, automation, cloud infrastructure, and security</strong>
+                </article>
                 <article className="sp-quick-card">
                   <span className="sp-quick-label">Roots</span>
                   <strong className="sp-quick-value">Cairo, Egypt</strong>
                 </article>
                 <article className="sp-quick-card">
-                  <span className="sp-quick-label">Focus</span>
-                  <strong className="sp-quick-value">Backend + AI</strong>
-                </article>
-                <article className="sp-quick-card sp-quick-card-wide">
-                  <span className="sp-quick-label">Now</span>
-                  <strong className="sp-quick-value">Building systems that feel thoughtful, useful, and a little playful.</strong>
+                  <span className="sp-quick-label">Available</span>
+                  <strong className="sp-quick-value">Winter 2027</strong>
                 </article>
               </div>
             </div>
@@ -199,12 +211,12 @@ export default function StaticPortfolio() {
                 <p className="sp-eyebrow">Selected work</p>
                 <h2 id="projects-heading" className="sp-section-title">Projects</h2>
                 <p className="sp-section-copy">
-                  Products, experiments, and systems work that emphasize clarity, reliability, and practical value.
+                  Systems I designed, deployed, and operate — with an emphasis on reliability, testing, and practical value.
                 </p>
               </div>
 
               <div className="sp-project-grid">
-                {projects.map(project => (
+                {featuredProjects.map(project => (
                   <article key={project.id} className="sp-card">
                     {project.underConstruction && (
                       <span className="sp-wip">Under Construction</span>
@@ -241,6 +253,34 @@ export default function StaticPortfolio() {
                   </article>
                 ))}
               </div>
+
+              {secondaryProjects.length > 0 && (
+                <div className="sp-also-built">
+                  <h3 className="sp-also-title">Also built</h3>
+                  <ul className="sp-also-list">
+                    {secondaryProjects.map(project => (
+                      <li key={project.id} className="sp-also-item">
+                        <div className="sp-also-head">
+                          <strong className="sp-also-name">{project.name}</strong>
+                          {project.github && (
+                            <a
+                              href={project.github}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="sp-card-link"
+                            >
+                              View Code
+                            </a>
+                          )}
+                        </div>
+                        <p className="sp-also-desc">
+                          {project.tagline} &middot; {project.tech.join(', ')}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </section>
 
             <section className="sp-panel" id="skills" aria-labelledby="skills-heading">
@@ -248,21 +288,22 @@ export default function StaticPortfolio() {
                 <p className="sp-eyebrow">Toolbox</p>
                 <h2 id="skills-heading" className="sp-section-title">Skills</h2>
                 <p className="sp-section-copy">
-                  Grouped by confidence level so the strongest tools stay visually obvious.
+                  Grouped by area, with the tools I reach for most highlighted in gold.
                 </p>
               </div>
 
               <div className="sp-skills-grid">
-                {(['legendary', 'rare', 'common'] as const).map(tier => {
-                  const tierSkills = skills.filter(skill => skill.tier === tier)
+                {CATEGORY_ORDER.map(category => {
+                  const categorySkills = skills.filter(skill => skill.category === category)
+                  if (categorySkills.length === 0) return null
                   return (
-                    <section key={tier} className="sp-tier-group">
-                      <h3 className={`sp-tier-label sp-tier-${tier}`}>
-                        {tier.charAt(0).toUpperCase() + tier.slice(1)}
+                    <section key={category} className="sp-tier-group">
+                      <h3 className="sp-tier-label sp-tier-category">
+                        {CATEGORY_LABELS[category]}
                       </h3>
                       <div className="sp-skill-row">
-                        {tierSkills.map(skill => (
-                          <span key={skill.name} className={`sp-skill-badge sp-skill-${tier}`}>
+                        {categorySkills.map(skill => (
+                          <span key={skill.name} className={`sp-skill-badge sp-skill-${skill.tier}`}>
                             {skill.name}
                           </span>
                         ))}
@@ -278,15 +319,34 @@ export default function StaticPortfolio() {
                 <p className="sp-eyebrow">Timeline</p>
                 <h2 id="experience-heading" className="sp-section-title">Experience</h2>
                 <p className="sp-section-copy">
-                  Leadership, operations, and technical experience that shaped how I build and collaborate.
+                  Engineering work first, then the leadership roles that shaped how I collaborate.
                 </p>
               </div>
 
+              <h3 className="sp-exp-group-label">Engineering</h3>
               <div className="sp-timeline">
-                {experiences.map(experience => (
+                {professionalExperiences.map(experience => (
                   <article key={experience.id} className="sp-exp-card">
                     <div className="sp-exp-header">
-                      <h3 className="sp-exp-role">{experience.role}</h3>
+                      <h4 className="sp-exp-role">{experience.role}</h4>
+                      <span className="sp-exp-period">{experience.period}</span>
+                    </div>
+                    <p className="sp-exp-org">{experience.organization} &middot; {experience.location}</p>
+                    <ul className="sp-exp-highlights">
+                      {experience.highlights.map((highlight, index) => (
+                        <li key={index}>{highlight}</li>
+                      ))}
+                    </ul>
+                  </article>
+                ))}
+              </div>
+
+              <h3 className="sp-exp-group-label sp-exp-group-label-secondary">Leadership</h3>
+              <div className="sp-timeline">
+                {leadershipExperiences.map(experience => (
+                  <article key={experience.id} className="sp-exp-card sp-exp-card-muted">
+                    <div className="sp-exp-header">
+                      <h4 className="sp-exp-role">{experience.role}</h4>
                       <span className="sp-exp-period">{experience.period}</span>
                     </div>
                     <p className="sp-exp-org">{experience.organization} &middot; {experience.location}</p>
@@ -305,7 +365,7 @@ export default function StaticPortfolio() {
                 <p className="sp-eyebrow">Contact</p>
                 <h2 id="contact-heading" className="sp-section-title">Let&apos;s build something meaningful</h2>
                 <p className="sp-section-copy">
-                  I&apos;m looking for co-op opportunities and I&apos;m always happy to talk about engineering, product ideas, or ambitious student projects.
+                  I&apos;m seeking <strong>Winter 2027 co-op</strong> roles in software engineering and cybersecurity, and I&apos;m always happy to talk about backend systems, infrastructure, or ambitious student projects.
                 </p>
               </div>
 
@@ -683,6 +743,14 @@ const responsiveCSS = `
     line-height: 1.25;
   }
 
+  .sp-quick-note {
+    display: block;
+    margin-top: 0.22rem;
+    color: var(--sp-ink-soft);
+    font-size: 0.84rem;
+    line-height: 1.35;
+  }
+
   .sp-content {
     display: flex;
     flex-direction: column;
@@ -857,6 +925,7 @@ const responsiveCSS = `
   .sp-tier-legendary { color: #a27110; }
   .sp-tier-rare { color: #2f756d; }
   .sp-tier-common { color: #7d6246; }
+  .sp-tier-category { color: var(--sp-clay); }
 
   .sp-skill-legendary {
     background: rgba(217, 184, 124, 0.28);
@@ -876,9 +945,76 @@ const responsiveCSS = `
     border: 1px solid rgba(104, 79, 54, 0.12);
   }
 
+  .sp-also-built {
+    margin-top: 1.4rem;
+    padding-top: 1.1rem;
+    border-top: 1px solid rgba(184, 109, 62, 0.14);
+  }
+
+  .sp-also-title,
+  .sp-exp-group-label {
+    margin: 0 0 0.7rem;
+    color: var(--sp-clay);
+    font-size: 0.76rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-weight: 800;
+  }
+
+  .sp-exp-group-label {
+    margin-top: 0;
+  }
+
+  .sp-exp-group-label-secondary {
+    margin-top: 1.6rem;
+    color: var(--sp-ink-muted);
+  }
+
+  .sp-also-list {
+    display: grid;
+    gap: 0.7rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .sp-also-item {
+    padding: 0.7rem 0.9rem;
+    border-radius: 14px;
+    background: rgba(255, 250, 242, 0.6);
+    border: 1px solid rgba(123, 82, 41, 0.1);
+  }
+
+  .sp-also-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .sp-also-name {
+    color: var(--sp-ink);
+    font-size: 0.98rem;
+  }
+
+  .sp-also-desc {
+    margin: 0.25rem 0 0;
+    color: var(--sp-ink-muted);
+    font-size: 0.86rem;
+  }
+
   .sp-timeline {
     display: grid;
     gap: 1rem;
+  }
+
+  .sp-exp-card-muted {
+    border-left-color: rgba(184, 109, 62, 0.45);
+  }
+
+  .sp-exp-card-muted .sp-exp-org {
+    color: var(--sp-ink-muted);
   }
 
   .sp-exp-card {

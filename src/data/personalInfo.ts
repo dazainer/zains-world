@@ -1,14 +1,20 @@
 export const personalInfo = {
   name: 'Zain Khalil',
   bio: [
-    "Welcome to Zain's World! I'm Zain — a CS/BBA student at the University of Waterloo.",
-    'I build backend systems and applied AI tools.',
+    "Welcome to Zain's World! I'm Zain — a Computer Science co-op student at the University of Waterloo.",
+    'I build software across backend systems, automation, cloud infrastructure, and security.',
     "I grew up in Cairo, Egypt — that's why this world looks the way it does.",
     'Walk around and explore. Each building has something different to show you. Press M to open the map!',
   ],
+  education: {
+    school: 'University of Waterloo',
+    degree: 'Bachelor of Computer Science (BCS), Co-op',
+    period: 'Fall 2025 – Present',
+    location: 'Waterloo, Ontario',
+  },
   contact: {
     email: 'z7khalil@uwaterloo.ca',
-    linkedin: 'https://www.linkedin.com/in/zainskhalil',
+    linkedin: 'https://www.linkedin.com/in/zainskhalil/',
     github: 'https://github.com/dazainer',
   },
   funFacts: [

@@ -1,7 +1,7 @@
 export const terminalCommands: Record<string, string | (() => string)> = {
   help: "Available commands: whoami, ls, cat about.txt, cat books.txt, play snake, sudo hire zain, clear",
   whoami: 'A recruiter with great taste.',
-  ls: 'python.legendary  c.legendary  typescript.rare  react.rare  node.rare  postgres.rare  fastapi.rare  sql.rare  git.rare  javascript.rare  html-css.common  express.common  rest-apis.common  racket.common',
+  ls: 'python.legendary  c.legendary  fastapi.legendary  postgres.legendary  typescript.rare  javascript.rare  sql.rare  react.rare  node.rare  mysql.rare  pgvector.rare  pydantic.rare  docker.rare  aws-ec2.rare  aws-s3.rare  linux.rare  bash.rare  nginx.rare  github-actions.rare  ci-cd.rare  git.rare  pytest.rare  html-css.common  express.common  racket.common  systemd.common  cron.common',
   'cat about.txt': () => [
     'Organized a fully Arabic MUN conference for 150 delegates',
     'Completed the IB Diploma Programme in Cairo, Egypt',

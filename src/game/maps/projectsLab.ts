@@ -1,6 +1,6 @@
 /**
  * Projects Lab — compact workshop interior.
- * 3 workstations along the north wall (SpecGuard, Expense Tracker, Meeting Copilot).
+ * 4 workstations along the north wall (SpecGuard, Expense Tracker, Meeting Copilot, Abdo).
  * Each station has a desk (wall blocks), a colored marker above, and interaction tiles.
  * Decorative props (pots, barrels, crates) scattered around the room.
  * Exit door at bottom-centre returns to overworld at the Temple building.
@@ -28,9 +28,9 @@ const collisionGrid: TileType[][] = [
 // col: 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
 /* 0 */[W, W, W, W, W, W, W, W, W, W, W, W, W, W],
 /* 1 */[W, W, W, W, W, W, W, W, W, W, W, W, W, W],
-/* 2 */[W, F, W, W, F, W, W, F, W, W, F, F, F, W],
-/* 3 */[W, F, W, W, F, W, W, F, W, W, F, F, F, W],
-/* 4 */[W, F, I, I, F, I, I, F, I, I, F, F, F, W],
+/* 2 */[W, F, W, W, F, W, W, F, W, W, F, W, W, W],
+/* 3 */[W, F, W, W, F, W, W, F, W, W, F, W, W, W],
+/* 4 */[W, F, I, I, F, I, I, F, I, I, F, I, I, W],
 /* 5 */[W, F, F, F, F, F, F, F, F, F, F, F, F, W],
 /* 6 */[W, F, F, F, F, F, F, F, F, F, F, F, F, W],
 /* 7 */[W, F, F, F, F, F, F, F, F, F, F, F, F, W],
@@ -56,6 +56,8 @@ const interactionZones: InteractionZoneDef[] = [
   { col: 6,  row: 4, id: 'station-expense-tracker',   payload: 'expense-tracker' },
   { col: 8,  row: 4, id: 'station-meeting-copilot',   payload: 'meeting-copilot' },
   { col: 9,  row: 4, id: 'station-meeting-copilot',   payload: 'meeting-copilot' },
+  { col: 11, row: 4, id: 'station-abdo',              payload: 'abdo' },
+  { col: 12, row: 4, id: 'station-abdo',              payload: 'abdo' },
 ]
 
 // ── Station decoration metadata (consumed by GameEngine.renderInterior) ─────
@@ -68,9 +70,10 @@ export interface StationDeco {
 }
 
 export const stationDecos: StationDeco[] = [
-  { label: 'SpecGuard',        color: '#4ec9b0', deskCols: [2, 3], deskRow: 3, markerRow: 2 },
-  { label: 'Expense Tracker',  color: '#dcdcaa', deskCols: [5, 6], deskRow: 3, markerRow: 2 },
-  { label: 'Meeting Copilot',  color: '#ce9178', deskCols: [8, 9], deskRow: 3, markerRow: 2 },
+  { label: 'SpecGuard',        color: '#4ec9b0', deskCols: [2, 3],   deskRow: 3, markerRow: 2 },
+  { label: 'Expense Tracker',  color: '#dcdcaa', deskCols: [5, 6],   deskRow: 3, markerRow: 2 },
+  { label: 'Meeting Copilot',  color: '#ce9178', deskCols: [8, 9],   deskRow: 3, markerRow: 2 },
+  { label: 'Abdo',             color: '#c586c0', deskCols: [11, 12], deskRow: 3, markerRow: 2 },
 ]
 
 const spriteDecos = [
@@ -88,10 +91,10 @@ function buildAmbients(): AmbientSprite[] {
   const frames = SpriteSheet.buildRow(0, 0, 16, 32, 6)
 
   const torchPositions = [
-    { col: 1,  row: 1 },  // left of station 1
-    { col: 4,  row: 1 },  // between station 1 & 2
-    { col: 8,  row: 1 },  // between station 2 & 3
-    { col: 11, row: 1 },  // right of station 3
+    { col: 1,  row: 1 },  // left of SpecGuard
+    { col: 4,  row: 1 },  // between SpecGuard & Expense Tracker
+    { col: 7,  row: 1 },  // between Expense Tracker & Meeting Copilot
+    { col: 10, row: 1 },  // between Meeting Copilot & Abdo
     { col: 1,  row: 8 },  // left wall mid
     { col: 12, row: 8 },  // right wall mid
   ]
