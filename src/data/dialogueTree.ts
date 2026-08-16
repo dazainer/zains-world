@@ -48,7 +48,7 @@ export const mummyDialogueTree: Record<string, DialogueNode> = {
   'mummy-zain': {
     id: 'mummy-zain',
     speaker: 'mummy',
-    text: "Zain is a Computer Science co-op student at the University of Waterloo who builds backend systems, automation, and cloud infrastructure. He just finished a DevOps internship in Cairo, which is also where he grew up, which is why this whole world looks like it was approved by a very dramatic desert architect. He wants each building to show a different side of his work, and if you ever get turned around, press M for the map instead of pretending you meant to walk in circles.",
+    text: "Zain is a Computer Science co-op student at the University of Waterloo who builds backend systems, automation, and cloud infrastructure. He just finished a software engineering internship in Cairo, which is also where he grew up, which is why this whole world looks like it was approved by a very dramatic desert architect. He wants each building to show a different side of his work, and if you ever get turned around, press M for the map instead of pretending you meant to walk in circles.",
     choices: [
       { label: 'What should I explore first?', nextId: 'player-explore' },
       { label: 'Back', nextId: 'mummy-who' },

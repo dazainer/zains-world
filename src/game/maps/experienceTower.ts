@@ -71,7 +71,7 @@ export const towerGalleryData: Record<string, FloorGalleryData> = {
     ],
   },
   experienceTower_4: {
-    title: 'IdealRatings — DevOps Intern',
+    title: 'IdealRatings — Software Engineering Intern',
     titleColor: '#f0913c',
     paintings: [
       { photo: '/assets/photos/web/idealratings.png', experienceId: 'idealratings', col: 5 },

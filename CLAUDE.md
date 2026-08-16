@@ -98,9 +98,15 @@ These notes reflect the live codebase more reliably than some of the original de
   document predate it — treat `src/data/*.ts` as the source of truth, not those snippets.
   - `data/experience.ts` gained `kind: 'professional' | 'leadership'` plus the
     `professionalExperiences` / `leadershipExperiences` exports; `floor` is now `number | null`
-    (it is documentation-only and unused in code). IdealRatings (DevOps Intern) leads the list
-    and has `floor: null` because the Experience Tower is a photo gallery and no photos exist
-    for it yet — adding a 4th tower floor requires 1–3 photos.
+    (it is documentation-only and unused in code). IdealRatings (Software Engineering Intern,
+    the title used on the current résumé) leads the list on `floor: 4`, the Experience Tower's
+    top floor, which shows a single centred exhibit using the padded logo at
+    `/assets/photos/web/idealratings.png`. The gallery frames cover-fit crop, so any image
+    added there must be roughly square or it will be cut off.
+  - Site copy is kept aligned with `public/resume.pdf` — role titles, figures (~30 employees,
+    ~5,000 securities, 85 tests, 300+ interactions, 23 pytest tests) and bullet phrasing all
+    trace back to it. When the résumé changes, re-check `data/experience.ts`,
+    `data/personalInfoPortfolio.ts`, `data/dialogueTree.ts`, and the floor-4 gallery title.
   - `data/projects.ts` gained `featured: boolean` plus `featuredProjects` / `secondaryProjects`.
     Abdo leads; Expense Tracker is `featured: false` and renders in the portfolio's
     "Also built" list. Note `monitorAnimation` has no consumers — it is vestigial.

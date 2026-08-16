@@ -17,16 +17,16 @@ export interface Experience {
 export const experiences: Experience[] = [
   {
     id: 'idealratings',
-    role: 'DevOps Intern',
+    role: 'Software Engineering Intern',
     organization: 'IdealRatings',
     period: 'May 2026 – Aug 2026',
     location: 'Cairo, Egypt',
     kind: 'professional',
     highlights: [
-      'Designed and built a Python report-automation tool now used by tens of employees: it reads Excel workbooks of source URLs, retrieves or renders each document to PDF, uploads to Amazon S3, and returns an output workbook of S3 links and statuses — roughly 95% automated success across ~100-company production-style files',
-      'Built a modular Python/MySQL market-data pipeline that dynamically loads ~5,000 active NYSE/Nasdaq listings and normalizes prices, fundamentals, corporate actions, and identifiers across SEC EDGAR, Saudi Exchange, FMP, and Finnhub, with upserts, per-ticker failure isolation, and 85 automated tests',
-      'Built and deployed a FastAPI email service on Amazon SES with X-API-Key authentication, SHA-256 hashed keys, and MySQL-backed key management and delivery auditing — accepted and used internally',
-      'Deployed FastAPI and static applications to Ubuntu on AWS EC2 using Nginx, systemd, Docker Compose, and a GitHub Actions pipeline for validation and SSH-based deployment, plus Bash deploy scripts, cron backup cleanup, and health checks',
+      'Built and deployed a Python report-automation tool used by ~30 employees to retrieve and process company reports, upload results to AWS S3, and generate output Excel files; automated ~95% of sources across ~100-company files, reducing workflows from several days to a few hours',
+      'Engineered a modular Python/MySQL market-data pipeline targeting ~5,000 NYSE/Nasdaq securities, integrating exchange and SEC data for prices, shares outstanding, fundamentals, news, and corporate actions with upserts, retries, failure isolation, and 85 automated tests',
+      'Developed and deployed a FastAPI email service using Amazon SES, implementing SHA-256 API-key authentication, MySQL audit logging, HTML/plain-text delivery, attachments, and AWS IAM/Boto3 integration',
+      'Automated application deployment and operations using Linux, Bash, Nginx, systemd, Docker Compose, and GitHub Actions, adding backups, health checks, CI validation, SSH-based deployment, logging, and service verification',
     ],
     photo: '/assets/photos/web/idealratings.png',
     floor: 4,
@@ -34,7 +34,7 @@ export const experiences: Experience[] = [
   {
     id: 'omam-mun',
     role: 'Executive Director',
-    organization: 'OMAM Model United Nations',
+    organization: 'OMAM Model United Nations, The International School of Elite Education',
     period: 'Aug 2024 – Mar 2025',
     location: 'Cairo, Egypt',
     kind: 'leadership',

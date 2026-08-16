@@ -13,7 +13,27 @@
       "Bash(python3 -c \":*)",
       "Bash(python3:*)",
       "Bash(node:*)",
-      "Bash(sips -g pixelWidth -g pixelHeight \"/Users/zain/Desktop/Projects/zains-world/public/assets/sprites/Player.png\" \"/Users/zain/Desktop/Projects/zains-world/public/assets/sprites/Mummy.png\" \"/Users/zain/Desktop/Projects/zains-world/public/assets/ambient/Idle Camel \\(2 Directions\\).png\" \"/Users/zain/Desktop/Projects/zains-world/public/assets/ambient/Camel Eating \\(2 Directions\\).png\" \"/Users/zain/Desktop/Projects/zains-world/public/assets/ambient/Idle Snake \\(2 Directions\\).png\" \"/Users/zain/Desktop/Projects/zains-world/public/assets/tiles/dungeon/Fire.png\")"
+      "Bash(sips -g pixelWidth -g pixelHeight \"/Users/zain/Desktop/Projects/zains-world/public/assets/sprites/Player.png\" \"/Users/zain/Desktop/Projects/zains-world/public/assets/sprites/Mummy.png\" \"/Users/zain/Desktop/Projects/zains-world/public/assets/ambient/Idle Camel \\(2 Directions\\).png\" \"/Users/zain/Desktop/Projects/zains-world/public/assets/ambient/Camel Eating \\(2 Directions\\).png\" \"/Users/zain/Desktop/Projects/zains-world/public/assets/ambient/Idle Snake \\(2 Directions\\).png\" \"/Users/zain/Desktop/Projects/zains-world/public/assets/tiles/dungeon/Fire.png\")",
+      "Bash(pkill -f \"vite\")",
+      "Bash(identify public/assets/tiles/egypt/Pyramid.png public/assets/tiles/egypt/Back.png public/assets/tiles/dungeon/Door.png public/assets/tiles/dungeon/Treasure_Box.png public/assets/sprites/Mummy.png)",
+      "Bash(wc:*)",
+      "Bash(npx vite:*)",
+      "Bash(sips:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(vercel whoami:*)",
+      "Bash(vercel link:*)",
+      "Bash(vercel env:*)",
+      "Bash(npx --yes neonctl --version)",
+      "Bash(npx neonctl:*)",
+      "Bash(psql:*)",
+      "Bash(vercel:*)",
+      "Bash(ls:*)",
+      "Bash(gh auth:*)",
+      "Bash(git config:*)",
+      "Bash(ssh -T git@github.com)",
+      "Bash(gh repo:*)",
+      "Bash(git push:*)",
+      "Bash(rg --files src/ api/)"
     ]
   }
 }
